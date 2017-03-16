@@ -167,4 +167,11 @@ config MTD_NAND_DENALI_TIMING_MODE
 
 endif
 
+config NAND_SMC35X
+       tristate "NAND Flash Support for devices using smc-35x"
+       depends on BUS_SMC35X
+       help
+         Support for NAND flash using smc-35x. smc-35x is a static memory
+         controller interface.
+
 endif
