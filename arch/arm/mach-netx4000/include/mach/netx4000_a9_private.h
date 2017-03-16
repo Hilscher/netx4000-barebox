@@ -1,0 +1,45 @@
+/*
+*
+* This program is free software; you can redistribute it and/or
+* modify it under the terms of the GNU General Public License as
+* published by the Free Software Foundation; either version 2 of
+* the License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+*/
+#ifndef _NETX4000_A9_PRIVATE_H_
+#define _NETX4000_A9_PRIVATE_H_
+
+#include <mach/netx4000_regs.h>
+
+#define GLBL_TIMER_COUNTER_LOWER  (NETX4000_A9_GLOBALTIMER_BASE + 0x00)
+#define GLBL_TIMER_COUNTER_UPPER  (NETX4000_A9_GLOBALTIMER_BASE + 0x04)
+#define GLBL_TIMER_CONTROL    (NETX4000_A9_GLOBALTIMER_BASE + 0x08)
+#define GLBL_TIMER_IRQ_STATE    (NETX4000_A9_GLOBALTIMER_BASE + 0x0C)
+#define GLBL_TIMER_COMP_LOWER   (NETX4000_A9_GLOBALTIMER_BASE + 0x10)
+#define GLBL_TIMER_COMP_UPPER   (NETX4000_A9_GLOBALTIMER_BASE + 0x14)
+#define GLBL_TIMER_AUTOINCR   (NETX4000_A9_GLOBALTIMER_BASE + 0x18)
+
+#define GLBL_TIMER_CONTROL_PRESCALER_SHIFT  (8)
+#define GLBL_TIMER_CONTROL_PRESCALER_MASK \
+	(0xFF << GLBL_TIMER_CONTROL_PRESCALER_SHIFT)
+#define GLBL_TIMER_CONTROL_AUTOINCR_SHIFT (3)
+#define GLBL_TIMER_CONTROL_AUTOINCR_MASK \
+	(0x01 << GLBL_TIMER_CONTROL_AUTOINCR_SHIFT)
+#define GLBL_TIMER_CONTROL_IRQ_ENA_SHIFT  (2)
+#define GLBL_TIMER_CONTROL_IRQ_ENA_MASK  \
+	(0x01 << GLBL_TIMER_CONTROL_IRQ_ENA_SHIFT)
+#define GLBL_TIMER_CONTROL_COMP_ENA_SHIFT (1)
+#define GLBL_TIMER_CONTROL_COMP_ENA_MASK \
+	(0x01 << GLBL_TIMER_CONTROL_COMP_ENA_SHIFT)
+#define GLBL_TIMER_CONTROL_ENABLE_SHIFT   (0)
+#define GLBL_TIMER_CONTROL_ENABLE_MASK \
+	(0x01 << GLBL_TIMER_CONTROL_ENABLE_SHIFT)
+
+#define GLBL_TIMER_IRQ_STATE_EVENT_MASK   (0x01)
+
+#endif /* _NETX4000_A9_PRIVATE_H_ */
