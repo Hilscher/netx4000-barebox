@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<HBootImage type="REGULAR">
+	<Chunks>
+		<!-- Load Programm for CA9 core0 and start afterwards -->
+		<Data>
+			<File name="@barebox_elf" />
+		</Data>
+		<ExecuteCA9>
+			<Core0>
+				<File name="@barebox_elf" start="barebox_arm_reset_vector" />
+			</Core0>
+		</ExecuteCA9>
+	</Chunks>
+</HBootImage>
