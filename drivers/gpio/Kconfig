@@ -136,6 +136,11 @@ config GPIO_LIBFTDI1
 	bool "libftdi1 driver"
 	depends on SANDBOX
 
+config GPIO_NETX4000
+	bool "GPIO driver for netX4000 based platforms"
+	help
+	  This selects GPIO support on Hilscher netX4000 based platforms.
+
 endmenu
 
 endif
