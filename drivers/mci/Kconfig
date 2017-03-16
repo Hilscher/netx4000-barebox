@@ -146,4 +146,10 @@ config MMC_SPI_CRC_ON
 	help
 	  Enable CRC protection for transfers
 
+config MCI_NETX4000
+	bool "MCI (SD/MMC) Host Controller driver for netX4000 based platfroms"
+	depends on ARCH_NETX4000
+	help
+	  This selects support for the SD/MMC host controller on Hilscher netX4000 based platforms.
+
 endif
