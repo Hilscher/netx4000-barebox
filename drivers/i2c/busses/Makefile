@@ -6,3 +6,4 @@ obj-$(CONFIG_I2C_OMAP)		+= i2c-omap.o
 obj-$(CONFIG_I2C_TEGRA)		+= i2c-tegra.o
 obj-$(CONFIG_I2C_VERSATILE)	+= i2c-versatile.o
 obj-$(CONFIG_I2C_DESIGNWARE)	+= i2c-designware.o
+obj-$(CONFIG_I2C_NETX4000)      += i2c-netx4000.o
