@@ -27,7 +27,7 @@
 #include <driver.h>
 #include <init.h>
 
-#if defined(CONFIG_CPU_V6)
+#if (defined(CONFIG_CPU_V6) || defined(CONFIG_CPU_V7))
 /*
  * ARMV6
  */
