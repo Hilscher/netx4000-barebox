@@ -41,6 +41,14 @@ config USB_GADGET_AUTOSTART
 	  gadget during boot. This behaviour is controlled with the
 	  global.usbgadget.fastboot_function variable.
 
+config USB_GADGET_DRIVER_NETX4000
+	bool
+	prompt "USB device controller driver for netX4000 based platforms"
+	depends on ARCH_NETX4000
+	select USB_GADGET_DUALSPEED
+	help
+	  This selects support for the USB device controller on Hilscher netX4000 based platforms.
+
 comment "USB Gadget drivers"
 
 config USB_GADGET_DFU
