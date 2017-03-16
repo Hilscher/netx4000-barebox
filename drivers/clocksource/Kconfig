@@ -65,3 +65,7 @@ config CLOCKSOURCE_ROCKCHIP
 config CLOCKSOURCE_ATMEL_PIT
        bool
        depends on SOC_AT91SAM9 || SOC_SAMA5
+
+config CLOCKSOURCE_NETX4000
+       bool
+       depends on ARCH_NETX4000
