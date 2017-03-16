@@ -136,6 +136,22 @@ config ARCH_NETX
 	bool "Hilscher NetX based"
 	select CPU_ARM926T
 
+config ARCH_NETX4000
+	bool "Hilscher NetX4000 based"
+	select CPU_V7
+	select ARCH_HAS_L2X0
+	select ARM_AMBA
+	select COMMON_CLK
+	select CLOCKSOURCE_NETX4000
+	select COMMON_CLK_OF_PROVIDER
+	select CLKDEV_LOOKUP
+	select GPIOLIB
+	select PINCTRL
+	select PINCTRL_SINGLE
+	select OFTREE
+	help
+	  Support for the netX4000 (Cortex-A9) platform by Hilscher
+
 config ARCH_NOMADIK
 	bool "STMicroelectronics Nomadik"
 	select CPU_ARM926T
@@ -264,6 +280,7 @@ source arch/arm/mach-mxs/Kconfig
 source scripts/imx/Kconfig
 source arch/arm/mach-mvebu/Kconfig
 source arch/arm/mach-netx/Kconfig
+source arch/arm/mach-netx4000/Kconfig
 source arch/arm/mach-nomadik/Kconfig
 source arch/arm/mach-omap/Kconfig
 source arch/arm/mach-pxa/Kconfig
@@ -287,6 +304,34 @@ config AEABI
 	  ARM ABI (aka EABI).
 
 	  To use this you need GCC version 4.0.0 or later.
+
+choice
+  prompt "ARM FPU calling convention"
+  help
+    This option allows barebox to be compiled, using specific
+    calling conventions for FPU access (soft,softfp or hard).
+
+config SWFPU
+  bool "Use software emulated FPU"
+  help
+    This option allows barebox to be compiled, using software emulated FPU
+
+config HWFPUABI
+  bool "Use the HW-ABI for FPU"
+  help
+    This option allows barebox to be compiled, using hardware specific
+    calling conventions for the (hardware) FPU access.
+
+config SWFPUABI
+  bool "Use the SW-ABI for FPU"
+  help
+    This option allows barebox to be compiled, using software
+    specific calling conventions for the (hardware) FPU access.
+endchoice
+
+config FPUTYPE
+  depends on HWFPUABI || SWFPUABI
+  string "Enter name of FPU (-mfpu)"
 
 config THUMB2_BAREBOX
 	select ARM_ASM_UNIFIED

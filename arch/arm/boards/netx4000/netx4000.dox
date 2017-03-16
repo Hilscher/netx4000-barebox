@@ -1,0 +1,6 @@
+/** @page netx4000 Hilscher's NetX4000 family
+
+These boards are based on a Hilscher's netx4000 ARM CPU.
+For more information refer to the \ref dev_netx4000_arch "netx4000 platform" documentation.
+
+*/

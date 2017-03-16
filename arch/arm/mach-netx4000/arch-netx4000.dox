@@ -1,0 +1,103 @@
+/** @page dev_netx4000_arch Hilscher netx4000 platform
+
+This document highlights some of the factors for supporting netx4000 platforms in @a barebox.
+For more information refer to http://www.hilscher.com.
+
+@par Table of Contents
+@li @ref netx4000_general_info
+@li @ref netx4000_boards
+@li @ref netx4000_quick_build
+@li @ref netx4000_quick_run
+@li @ref mach_netx_boot_options
+@li @ref mach_netx_device_tree
+@li @ref netx4000_code_arch
+@li @ref mach_netx4000
+@li @ref asm_arm
+@li @ref board_netx4000
+@li @ref netx4000_boot
+@li @ref board_boot
+
+@section netx4000_general_info General information about the netx4000 barebox port
+TODO:\n
+- CPU hardware info
+- device tree
+- ...
+
+@section netx4000_boards The following netx4000 based boards are supported by barebox
+
+@li @subpage netx4000
+
+@section netx4000_quick_build How to build and configure barebox for netx4000 platform
+1. Prepare build environment\n
+Run the following commands to preload the environment variables with the netx4000 architecture
+and the path to the toolchain of your choice (recommended toolchain=>TODO).
+@code
+export ARCH=arm
+export CROSS_COMPILE=[path to choosen compiler]
+@endcode
+
+2. Configure barebox\n
+Run command 'a' to choose a predefined configuration set or run command 'b' to be able
+to adapt the barebox configuration for your needs.\n
+a)
+@code
+make netx40000_defconfig
+@endcode
+\*) For complete list of all available configuration files run 'make help'\n
+b) @code
+make menuconfig
+@endcode
+
+3. Build the barebox binaries\n
+@code
+make
+@endcode
+
+@section netx4000_quick_run How to run barebox on netx4000 platform
+
+TODO:\n
+For general information about building barebox and first steps refer to the barebox \ref users_manual "user's manual".
+
+
+@section mach_netx_boot_options List of available boot options
+
+TODO:
+
+@section mach_netx_device_tree netx4000 and it's device tree
+
+TODO:
+
+@section netx4000_arch Documentation for netx4000 Architectures files
+
+TODO:
+
+@li @subpage arch/arm/mach-netx4000/generic.c
+
+@section netx4000_code_arch How is barebox netx4000 specific architecture code organized?
+
+TODO:
+
+@section mach_netx4000 arch/arm/mach-netx4000 directory guidelines
+
+TODO:
+
+@section asm_arm include/asm-arm/arch-netx4000 directory guidelines
+TODO:\n
+- All netx4000 architecture specific headers are located here.
+- In case new of a new files the naming convention netx4000_[].h. Where we have to incorporate a OMAP variant specific header, add a omapX_function_name.h.
+@note - Board specific header files are placed under arch/arm/mach-netx4000/
+
+@section board_netx4000 arch/arm/boards/netx4000 directory guidelines
+TODO:\n
+All Board specific files are located here.
+- In case new of a new files the naming convention netx4000_[board_name].c
+
+@section netx4000_boot The netx4000 boot path
+
+TODO:
+
+@section board_boot The board boot path
+
+TODO:
+
+*/

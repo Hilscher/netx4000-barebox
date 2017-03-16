@@ -1,0 +1,23 @@
+#!/bin/sh
+
+global.bootm.appendroot=0
+global.bootm.image=""
+global.bootm.initrd=""
+global.bootm.oftree=""
+global.linux.bootargs.dyn.root=""
+
+# Try USB boot
+echo "Try USB to boot ..."
+/env/boot/usb && exit 0
+
+# Try MMC boot
+echo "Try MMC to boot ..."
+/env/boot/mmc && exit 0
+
+# Try NAND-FLASH boot
+echo "Try NAND-FLASH to boot ..."
+/env/boot/nand && exit 0
+
+echo "Error: Booting failed!"
+
+exit 1

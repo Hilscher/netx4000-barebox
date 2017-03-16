@@ -66,8 +66,26 @@ ifeq ($(CONFIG_CPU_V8), y)
 CPPFLAGS += $(CFLAGS_ABI) $(arch-y) $(tune-y)
 AFLAGS   += -include asm/unified.h
 else
-CPPFLAGS += $(CFLAGS_ABI) $(arch-y) $(tune-y) -msoft-float $(CFLAGS_THUMB2)
-AFLAGS   += -include asm/unified.h -msoft-float $(AFLAGS_THUMB2)
+CPPFLAGS += $(CFLAGS_ABI) $(arch-y) $(tune-y) $(CFLAGS_THUMB2)
+AFLAGS   += -include asm/unified.h $(AFLAGS_THUMB2)
+endif
+
+ifeq ($(CONFIG_HWFPUABI),y)
+CPPFLAGS += -mfloat-abi=hard
+AFLAGS   += -mfloat-abi=hard
+else
+ifeq ($(CONFIG_SWFPUABI),y)
+CPPFLAGS += -mfloat-abi=softfp
+AFLAGS   += -mfloat-abi=softfp
+else
+CPPFLAGS += -msoft-float
+AFLAGS   += -msoft-float
+endif
+endif
+
+ifneq ($(CONFIG_FPUTYPE),"")
+CPPFLAGS += -mfpu=$(CONFIG_FPUTYPE)
+AFLAGS   += -mfpu=$(CONFIG_FPUTYPE)
 endif
 
 # Machine directory name.  This list is sorted alphanumerically
@@ -84,6 +102,7 @@ machine-$(CONFIG_ARCH_MXS)		:= mxs
 machine-$(CONFIG_ARCH_MVEBU)		:= mvebu
 machine-$(CONFIG_ARCH_NOMADIK)		:= nomadik
 machine-$(CONFIG_ARCH_NETX)		:= netx
+machine-$(CONFIG_ARCH_NETX4000)		:= netx4000
 machine-$(CONFIG_ARCH_OMAP)		:= omap
 machine-$(CONFIG_ARCH_PXA)		:= pxa
 machine-$(CONFIG_ARCH_ROCKCHIP)		:= rockchip
@@ -155,6 +174,19 @@ ifeq ($(machine-y),netx)
 KBUILD_IMAGE := barebox.netx
 endif
 
+barebox.netx4000: barebox
+	cp $< $<.elf
+	$(Q)python scripts/netx4000/hboot_image_compiler.py 		\
+		-pscripts/netx4000/hboot_netx4000_patch_table.xml	\
+		-Abarebox_elf=$<.elf					\
+		--objcopy $(OBJCOPY) --objdump $(OBJDUMP)		\
+		--readelf $(CROSS_COMPILE)readelf			\
+		scripts/netx4000/ca9_boot.xml barebox.netx4000;
+	rm $<.elf
+
+ifeq ($(machine-y),netx4000)
+KBUILD_IMAGE := barebox.netx4000
+endif
 barebox.s5p: $(KBUILD_BINARY)
 	$(Q)scripts/s5p_cksum $< barebox.s5p
 

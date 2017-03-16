@@ -1,0 +1,24 @@
+#!/bin/sh
+
+MP1="/mnt/part1"
+MP2="/mnt/part2"
+
+if [ -e /dev/disk0.0 ]; then
+	mkdir -p $MP1
+	mount /dev/disk0.0 $MP1 && echo "Succesfully mounted mmc (part1) to" $MP1 || echo "Unable to mount mmc (part1)"
+fi
+
+if [ -e /dev/disk0.1 ]; then
+	mkdir -p $MP2
+	mount /dev/disk0.1 $MP2 && echo "Succesfully mounted mmc (part2) to" $MP2 || echo "Unable to mount mmc (part2)"
+fi
+
+/env/boot/set_boot_env "/dev/mmcblk0p"
+
+if [ -z "$global.bootm.image" -o -z "$global.linux.bootargs.dyn.root" ]; then
+	if [ -d $MP1 ]; then umount $MP1; rm $MP1; fi
+	if [ -d $MP2 ]; then umount $MP2; rm $MP2; fi
+	exit 1
+fi
+
+exit 0

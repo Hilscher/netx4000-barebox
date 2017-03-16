@@ -1,0 +1,31 @@
+#
+# netX4000 Architecture specific features
+#
+# (C) Copyright 2014
+# Hilscher Gesellschaft fuer Systemautomation mbH, <www.hilscher.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 2 of
+# the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+
+menu "netX4000 Features"
+	depends on MACH_NETX4000
+
+comment "Hardware Options"
+
+comment "Further Options"
+config ENABLE_DDR_ECC
+	bool "Enable ecc for DDR-RAM"
+	default n
+	help
+		Enables ecc for DDR-RAM.
+		NOTE: This feature will slow down the boot process due to the memory initialization time.
+
+endmenu

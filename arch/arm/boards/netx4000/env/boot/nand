@@ -1,0 +1,26 @@
+#!/bin/sh
+
+MP1="/mnt/part1"
+
+if [ -e /dev/nand0.rootfs ]; then
+	ubiattach /dev/nand0.rootfs
+	if [ -e /dev/nand0.rootfs.ubi.rootfs ]; then
+		mkdir -p $MP1
+		mount /dev/nand0.rootfs.ubi.rootfs $MP1 && echo "Succesfully mounted nand-flash (part1) to" $MP1 || echo "Unable to mount nand-flash (part1)"
+	fi
+fi
+
+# Using a fake root dev path at this point.
+# The real root dev path will be set at the end of this script.
+/env/boot/set_boot_env "/mnt/part"
+
+if [ -z "$global.bootm.image" -o -z "$global.linux.bootargs.dyn.root" ]; then
+	if [ -d $MP1 ]; then umount $MP1; rm $MP1; fi
+	exit 1
+fi
+
+# Now, we fix the real root dev path.
+global.linux.bootargs.dyn.root=""
+global.bootm.appendroot=1
+
+exit 0
