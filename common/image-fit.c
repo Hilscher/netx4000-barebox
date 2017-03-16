@@ -43,6 +43,8 @@
 #define CHECK_LEVEL_SIG 2
 #define CHECK_LEVEL_MAX 3
 
+#define FIT_SIG_NODENAME "signature"
+
 static uint32_t dt_struct_advance(struct fdt_header *f, uint32_t dt, int size)
 {
 	dt += size;
@@ -256,6 +258,8 @@ static int fit_verify_signature(struct device_node *sig_node, void *fit)
 		algo = HASH_ALGO_SHA1;
 	} else if (strcmp(algo_name, "sha256,rsa4096") == 0) {
 		algo = HASH_ALGO_SHA256;
+	} else if (strcmp(algo_name, "sha512,rsa4096") == 0) {
+		algo = HASH_ALGO_SHA512;
 	} else	{
 		pr_err("unknown algo %s\n", algo_name);
 		ret = -EINVAL;
@@ -473,11 +477,14 @@ static int fit_config_verify_signature(struct fit_handle *handle, struct device_
 	}
 
 	for_each_child_of_node(conf_node, sig_node) {
-		if (handle->verbose)
-			of_print_nodes(sig_node, 0);
-		ret = fit_verify_signature(sig_node, handle->fit);
-		if (ret < 0)
-			return ret;
+		if (!(strncmp(sig_node->name,FIT_SIG_NODENAME,strlen(FIT_SIG_NODENAME)))) {
+			if (handle->verbose)
+				of_print_nodes(sig_node, 0);
+
+			ret = fit_verify_signature(sig_node, handle->fit);
+			if (ret < 0)
+				return ret;
+		}
 	}
 
 	if (ret < 0) {
