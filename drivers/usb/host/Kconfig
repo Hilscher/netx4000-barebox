@@ -13,6 +13,13 @@ config USB_EHCI_ATMEL
 	select USB_OHCI_AT91
 	bool "Atmel EHCI driver"
 
+config USB_EHCI_NETX4000
+	depends on ARCH_NETX4000
+	depends on USB_EHCI
+	bool "EHCI driver for Hilscher netX4000 based platforms"
+	help
+	  This selects support for the EHCI controllers on Hilscher netX4000 based platforms.
+
 config USB_OHCI
 	bool "OHCI driver"
 	depends on !MMU
