@@ -70,3 +70,7 @@ config CLOCKSOURCE_ARMV8_TIMER
 	bool
 	default y
 	depends on ARM && CPU_64v8
+
+config CLOCKSOURCE_NETX4000
+       bool
+       depends on ARCH_NETX4000
