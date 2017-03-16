@@ -8,3 +8,4 @@ obj-$(CONFIG_DRIVER_SPI_ALTERA) += altera_spi.o
 obj-$(CONFIG_DRIVER_SPI_ATMEL) += atmel_spi.o
 obj-$(CONFIG_DRIVER_SPI_OMAP3) += omap3_spi.o
 obj-$(CONFIG_DRIVER_SPI_DSPI) += dspi_spi.o
+obj-$(CONFIG_DRIVER_SPI_PL022) += spi-pl022.o

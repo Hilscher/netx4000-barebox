@@ -62,6 +62,9 @@ config DRIVER_SPI_DSPI
 	  This enables support for the Freescale DSPI controller in master
 	  mode. VF610 platform uses the controller.
 
+config DRIVER_SPI_PL022
+	bool "Pl022 SPI driver"
+
 endif
 
 endmenu
