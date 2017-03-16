@@ -54,6 +54,9 @@ config DRIVER_SPI_OMAP3
 	bool "OMAP3 McSPI Master driver"
 	depends on ARCH_OMAP3 || ARCH_AM33XX
 
+config DRIVER_SPI_PL022
+	bool "Pl022 SPI driver"
+
 endif
 
 endmenu
