@@ -1,0 +1,39 @@
+#!/bin/sh
+
+func=$1
+
+# func: image
+# If available, sets the image path variable to the image (e.g. fitImage, kernel ...)
+if [ "$func" = "image" ]; then
+	mp=$2
+	path=$3
+	if [ -L $mp$path -o -f $mp$path ]; then
+		readlink $mp$path link
+		[ -z "$link" ] && link="$path"
+		image="$mp$link"
+	fi
+fi
+
+# func: initrd
+# If available, sets the initrd path variable to the initrd
+if [ "$func" = "initrd" ]; then
+	mp=$2
+	path=$3
+	if [ -L $mp$path -o -f $mp$path ]; then
+		readlink $mp$path link
+		[ -z "$link" ] && link="$path"
+		initrd="$mp$link"
+	fi
+fi
+
+# func: oftree
+# If available, sets the oftree path variable to the oftree
+if [ "$func" = "oftree" ]; then
+	mp=$2
+	path=$3
+	if [ -L $mp$path -o -f $mp$path ]; then
+		readlink $mp$path link
+		[ -z "$link" ] && link="$path"
+		oftree="$mp$link"
+	fi
+fi

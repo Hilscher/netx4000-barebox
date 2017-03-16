@@ -1,0 +1,37 @@
+#
+# netX4000 Architecture specific features
+#
+# (C) Copyright 2014
+# Hilscher Gesellschaft fuer Systemautomation mbH, <www.hilscher.com>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 2 of
+# the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+
+menu "netX4000 Options"
+	depends on ARCH_NETX4000
+
+config ARCH_TEXT_BASE
+	hex
+	default 0x05001000
+
+choice
+	prompt "Select netX4000 board type"
+
+config MACH_NETX4000
+	bool "netX4000 generic"
+	help
+	  Say Y here if you are using netX4000 platform
+
+endchoice
+
+source arch/arm/boards/netx4000/Kconfig
+
+endmenu
