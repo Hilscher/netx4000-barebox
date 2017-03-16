@@ -40,6 +40,13 @@ config DRIVER_NET_ARC_EMAC
 	  This option enables support for the ARC EMAC ethernet
 	  controller.
 
+config DRIVER_NET_GMAC_NETX4000
+	bool "GMAC driver for Hilscher netX4000 based platforms"
+	depends on ARCH_NETX4000
+	select PHYLIB
+	help
+	  This selects support for the GMAC controller on Hilscher netX4000 based platforms.
+
 config DRIVER_NET_AT91_ETHER
 	bool "at91 ethernet driver"
 	depends on HAS_AT91_ETHER
