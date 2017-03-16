@@ -34,6 +34,13 @@
 #include <linux/err.h>
 #include <linux/amba/bus.h>
 
+#ifdef CONFIG_MACH_NETX4000 /* only word access possible */
+	#undef writel
+	#define writel(x, y) writew((x & 0xFFFF), y)
+	#undef readl
+	#define readl(y) readw(y)
+#endif
+
 /*
  * We wrap our port structure around the generic console_device.
  */
