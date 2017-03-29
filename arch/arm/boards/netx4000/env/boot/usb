@@ -3,15 +3,22 @@
 MP1="/mnt/part1"
 MP2="/mnt/part2"
 
-usb
-if [ -e /dev/disk1.0 ]; then
-	mkdir -p $MP1
-	mount /dev/disk1.0 $MP1 && echo "Succesfully mounted usb (part1) to" $MP1 || echo "Unable to mount usb (part2)"
+DEV1="/dev/disk0.0"
+DEV2="/dev/disk0.1"
+if [ -e /dev/disk0 ]; then
+	DEV1="/dev/disk1.0"
+	DEV2="/dev/disk1.1"
 fi
 
-if [ -e /dev/disk1.1 ]; then
+usb
+if [ -e $DEV1 ]; then
+	mkdir -p $MP1
+	mount $DEV1 $MP1 && echo "Succesfully mounted usb (part1) to" $MP1 || echo "Unable to mount usb (part2)"
+fi
+
+if [ -e $DEV2 ]; then
 	mkdir -p $MP2
-	mount /dev/disk1.1 $MP2 && echo "Succesfully mounted usb (part2) to" $MP2 || echo "Unable to mount usb (part2)"
+	mount $DEV2 $MP2 && echo "Succesfully mounted usb (part2) to" $MP2 || echo "Unable to mount usb (part2)"
 fi
 
 /env/boot/set_boot_env "/dev/sda"
