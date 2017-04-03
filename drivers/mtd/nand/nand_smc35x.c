@@ -147,28 +147,6 @@ static struct nand_ecclayout nand_oob_16 = {
 		 . length = 8} }
 };
 
-static struct nand_ecclayout nand_oob_64_ecc12 = {
-	.eccbytes = ECC_BYTES_12,
-	.eccpos = {
-		   52, 53, 54, 55, 56, 57,
-		   58, 59, 60, 61, 62, 63},
-	.oobfree = {
-		{.offset = 2,
-		 .length = 50} }
-};
-
-static struct nand_ecclayout nand_oob_64_ecc24 = {
-	.eccbytes = ECC_BYTES_24,
-	.eccpos = {
-		40, 41, 42, 43, 44, 45,
-		46, 47, 48, 49, 50, 51,
-		52, 53, 54, 55, 56, 57,
-		58, 59, 60, 61, 62, 63},
-		.oobfree = {
-			{.offset = 2,
-				.length = 38} }
-};
-
 static struct nand_ecclayout ondie_nand_oob_64 = {
 	.eccbytes = ECC_BYTES_32,
 
@@ -210,74 +188,6 @@ static struct nand_bbt_descr bbt_mirror_descr = {
 	.maxblocks = 7,
 	.pattern = mirror_pattern
 };
-
-/**
- * pl353_nand_calculate_hwecc - Calculate Hardware ECC
- * @mtd:	Pointer to the mtd_info structure
- * @data:	Pointer to the page data
- * @ecc_code:	Pointer to the ECC buffer where ECC data needs to be stored
- *
- * This function retrieves the Hardware ECC data from the controller and returns
- * ECC data back to the MTD subsystem.
- *
- * Return:	0 on success or error value on failure
- */
-static int pl353_nand_calculate_hwecc(struct mtd_info *mtd,
-				const u8 *data, u8 *ecc_code)
-{
-	struct nand_chip *nand_chip = (struct nand_chip*)mtd->priv;
-	struct pl353_nand_info *info = (struct pl353_nand_info*)nand_chip->priv;
-	u32 ecc_value, ecc_status;
-	u8 ecc_reg, ecc_byte;
-	unsigned long timeout = get_time_ns() + PL353_NAND_ECC_BUSY_TIMEOUT;
-
-	/* Wait till the ECC operation is complete or timeout */
-	do {
-		if (smc35x_ecc_is_busy(info->pdev)) {
-			//cpu_relax();TODO
-		} else {
-			break;
-		}
-	} while (get_time_ns()<timeout);
-
-	if (get_time_ns()>timeout) {
-		pr_err("%s timed out\n", __func__);
-		return -ETIMEDOUT;
-	}
-
-	for (ecc_reg = 0; ecc_reg < 4; ecc_reg++) {
-		/* Read ECC value for each block */
-		ecc_value = smc35x_get_ecc_val(info->pdev, ecc_reg);
-		ecc_status = (ecc_value >> 24) & 0xFF;
-		/* ECC value valid */
-		if (ecc_status & 0x40) {
-			for (ecc_byte = 0; ecc_byte < 3; ecc_byte++) {
-				/* Copy ECC bytes to MTD buffer */
-				*ecc_code = ecc_value & 0xFF;
-				ecc_value = ecc_value >> 8;
-				ecc_code++;
-		}
-		} else {
-			pr_warn("%s status failed\n", __func__);
-			return -1;
-		}
-	}
-	return 0;
-}
-
-/**
- * onehot - onehot function
- * @value:	Value to check for onehot
- *
- * This function checks whether a value is onehot or not.
- * onehot is if and only if onebit is set.
- *
- * Return:	1 if it is onehot else 0
- */
-static int onehot(unsigned short value)
-{
-	return (value & (value - 1)) == 0;
-}
 
 /**
  * pl353_nand_detect_ondie_ecc - Get the flash ondie ecc state
@@ -343,56 +253,6 @@ static int pl353_nand_detect_ondie_ecc(struct mtd_info *mtd)
 	}
 
 	return 0;
-}
-
-/**
- * pl353_nand_correct_data - ECC correction function
- * @mtd:	Pointer to the mtd_info structure
- * @buf:	Pointer to the page data
- * @read_ecc:	Pointer to the ECC value read from spare data area
- * @calc_ecc:	Pointer to the calculated ECC value
- *
- * This function corrects the ECC single bit errors & detects 2-bit errors.
- *
- * Return:	0 if no ECC errors found
- *		1 if single bit error found and corrected.
- *		-1 if multiple ECC errors found.
- */
-static int pl353_nand_correct_data(struct mtd_info *mtd, unsigned char *buf,
-				unsigned char *read_ecc,
-				unsigned char *calc_ecc)
-{
-	unsigned char bit_addr;
-	unsigned int byte_addr;
-	unsigned short ecc_odd, ecc_even, read_ecc_lower, read_ecc_upper;
-	unsigned short calc_ecc_lower, calc_ecc_upper;
-
-	read_ecc_lower = (read_ecc[0] | (read_ecc[1] << 8)) & 0xfff;
-	read_ecc_upper = ((read_ecc[1] >> 4) | (read_ecc[2] << 4)) & 0xfff;
-
-	calc_ecc_lower = (calc_ecc[0] | (calc_ecc[1] << 8)) & 0xfff;
-	calc_ecc_upper = ((calc_ecc[1] >> 4) | (calc_ecc[2] << 4)) & 0xfff;
-
-	ecc_odd = read_ecc_lower ^ calc_ecc_lower;
-	ecc_even = read_ecc_upper ^ calc_ecc_upper;
-
-	if ((ecc_odd == 0) && (ecc_even == 0))
-		return 0;       /* no error */
-
-	if (ecc_odd == (~ecc_even & 0xfff)) {
-		/* bits [11:3] of error code is byte offset */
-		byte_addr = (ecc_odd >> 3) & 0x1ff;
-		/* bits [2:0] of error code is bit offset */
-		bit_addr = ecc_odd & 0x7;
-		/* Toggling error bit */
-		buf[byte_addr] ^= (1 << bit_addr);
-		return 1;
-	}
-
-	if (onehot(ecc_odd | ecc_even) == 1)
-		return 1; /* one error in parity */
-
-	return -1; /* Uncorrectable error */
 }
 
 /**
@@ -524,85 +384,6 @@ static int pl353_nand_write_page_raw(struct mtd_info *mtd,
 }
 
 /**
- * pl353_nand_read_page_hwecc - Hardware ECC based page read function
- * @mtd:		Pointer to the mtd info structure
- * @chip:		Pointer to the NAND chip info structure
- * @buf:		Pointer to the buffer to store read data
- * @oob_required:	Caller requires OOB data read to chip->oob_poi
- * @page:		Page number to read
- *
- * This functions reads data and checks the data integrity by comparing hardware
- * generated ECC values and read ECC values from spare area.
- *
- * Return:	0 always and updates ECC operation status in to MTD structure
- */
-static int pl353_nand_read_page_hwecc(struct mtd_info *mtd,
-				     struct nand_chip *chip,
-				     uint8_t *buf, int oob_required, int page)
-{
-	int i, stat, eccsize = chip->ecc.size;
-	int eccbytes = chip->ecc.bytes;
-	int eccsteps = chip->ecc.steps;
-	uint8_t *p = buf;
-	uint8_t *ecc_calc = chip->buffers->ecccalc;
-	uint8_t *ecc_code = chip->buffers->ecccode;
-	uint32_t *eccpos = chip->ecc.layout->eccpos;
-	unsigned long data_phase_addr;
-	uint8_t *oob_ptr;
-
-	for ( ; (eccsteps - 1); eccsteps--) {
-		chip->read_buf(mtd, p, eccsize);
-		p += eccsize;
-	}
-	chip->read_buf(mtd, p, (eccsize - PL353_NAND_LAST_TRANSFER_LENGTH));
-	p += (eccsize - PL353_NAND_LAST_TRANSFER_LENGTH);
-
-	/* Set ECC Last bit to 1 */
-	data_phase_addr = (unsigned long __force)chip->IO_ADDR_R;
-	data_phase_addr |= PL353_NAND_ECC_LAST;
-	chip->IO_ADDR_R = (void __iomem * __force)data_phase_addr;
-	chip->read_buf(mtd, p, PL353_NAND_LAST_TRANSFER_LENGTH);
-
-	/* Read the calculated ECC value */
-	p = buf;
-	chip->ecc.calculate(mtd, p, &ecc_calc[0]);
-
-	/* Clear ECC last bit */
-	data_phase_addr = (unsigned long __force)chip->IO_ADDR_R;
-	data_phase_addr &= ~PL353_NAND_ECC_LAST;
-	chip->IO_ADDR_R = (void __iomem * __force)data_phase_addr;
-
-	/* Read the stored ECC value */
-	oob_ptr = chip->oob_poi;
-	chip->read_buf(mtd, oob_ptr,
-			(mtd->oobsize - PL353_NAND_LAST_TRANSFER_LENGTH));
-
-	/* de-assert chip select */
-	data_phase_addr = (unsigned long __force)chip->IO_ADDR_R;
-	data_phase_addr |= PL353_NAND_CLEAR_CS;
-	chip->IO_ADDR_R = (void __iomem * __force)data_phase_addr;
-
-	oob_ptr += (mtd->oobsize - PL353_NAND_LAST_TRANSFER_LENGTH);
-	chip->read_buf(mtd, oob_ptr, PL353_NAND_LAST_TRANSFER_LENGTH);
-
-	for (i = 0; i < chip->ecc.total; i++)
-		ecc_code[i] = ~(chip->oob_poi[eccpos[i]]);
-
-	eccsteps = chip->ecc.steps;
-	p = buf;
-
-	/* Check ECC error for all blocks and correct if it is correctable */
-	for (i = 0 ; eccsteps; eccsteps--, i += eccbytes, p += eccsize) {
-		stat = chip->ecc.correct(mtd, p, &ecc_code[i], &ecc_calc[i]);
-		if (stat < 0)
-			mtd->ecc_stats.failed++;
-		else
-			mtd->ecc_stats.corrected += stat;
-	}
-	return 0;
-}
-
-/**
  * pl353_nand_read_page_swecc - [REPLACABLE] software ecc based page read function
  * @mtd:		Pointer to the mtd info structure
  * @chip:		Pointer to the NAND chip info structure
@@ -648,69 +429,6 @@ static int pl353_nand_read_page_swecc(struct mtd_info *mtd,
 		}
 	}
 	return max_bitflips;
-}
-
-/**
- * nand_write_page_hwecc - Hardware ECC based page write function
- * @mtd:		Pointer to the mtd info structure
- * @chip:		Pointer to the NAND chip info structure
- * @buf:		Pointer to the data buffer
- * @oob_required:	Caller requires OOB data read to chip->oob_poi
- *
- * This functions writes data and hardware generated ECC values in to the page.
- *
- * Return:	Always return zero
- */
-static int pl353_nand_write_page_hwecc(struct mtd_info *mtd,
-				    struct nand_chip *chip, const uint8_t *buf,
-				    int oob_required)
-{
-	int i, eccsize = chip->ecc.size;
-	int eccsteps = chip->ecc.steps;
-	uint8_t *ecc_calc = chip->buffers->ecccalc;
-	const uint8_t *p = buf;
-	uint32_t *eccpos = chip->ecc.layout->eccpos;
-	unsigned long data_phase_addr;
-	uint8_t *oob_ptr;
-
-	for ( ; (eccsteps - 1); eccsteps--) {
-		chip->write_buf(mtd, p, eccsize);
-		p += eccsize;
-	}
-	chip->write_buf(mtd, p, (eccsize - PL353_NAND_LAST_TRANSFER_LENGTH));
-	p += (eccsize - PL353_NAND_LAST_TRANSFER_LENGTH);
-
-	/* Set ECC Last bit to 1 */
-	data_phase_addr = (unsigned long __force)chip->IO_ADDR_W;
-	data_phase_addr |= PL353_NAND_ECC_LAST;
-	chip->IO_ADDR_W = (void __iomem * __force)data_phase_addr;
-	chip->write_buf(mtd, p, PL353_NAND_LAST_TRANSFER_LENGTH);
-
-	/* Wait for ECC to be calculated and read the error values */
-	p = buf;
-	chip->ecc.calculate(mtd, p, &ecc_calc[0]);
-
-	for (i = 0; i < chip->ecc.total; i++)
-		chip->oob_poi[eccpos[i]] = ~(ecc_calc[i]);
-
-	/* Clear ECC last bit */
-	data_phase_addr = (unsigned long __force)chip->IO_ADDR_W;
-	data_phase_addr &= ~PL353_NAND_ECC_LAST;
-	chip->IO_ADDR_W = (void __iomem * __force)data_phase_addr;
-
-	/* Write the spare area with ECC bytes */
-	oob_ptr = chip->oob_poi;
-	chip->write_buf(mtd, oob_ptr,
-			(mtd->oobsize - PL353_NAND_LAST_TRANSFER_LENGTH));
-
-	data_phase_addr = (unsigned long __force)chip->IO_ADDR_W;
-	data_phase_addr |= PL353_NAND_CLEAR_CS;
-	data_phase_addr |= PL353_NAND_END_CMD_VALID;
-	chip->IO_ADDR_W = (void __iomem * __force)data_phase_addr;
-	oob_ptr += (mtd->oobsize - PL353_NAND_LAST_TRANSFER_LENGTH);
-	chip->write_buf(mtd, oob_ptr, PL353_NAND_LAST_TRANSFER_LENGTH);
-
-	return 0;
 }
 
 /**
