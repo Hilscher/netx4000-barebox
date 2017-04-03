@@ -366,7 +366,6 @@ static int is_done(struct priv_usb_ep *_pep)
 
 static int done(struct priv_usb_ep *_pep)
 {
-	struct priv_data *pdata = _pep->pdata;
 	struct priv_usb_request *preq;
 
 	if (list_empty(&_pep->queue)) {
@@ -570,7 +569,7 @@ static int netx4000_udc_start(struct usb_gadget *_gadget, struct usb_gadget_driv
 	return 0;
 }
 
-static int netx4000_udc_stop(struct usb_gadget *_gadget)
+static int netx4000_udc_stop(struct usb_gadget *_gadget, struct usb_gadget_driver *_driver)
 {
 	struct priv_data *pdata = gadget_to_pdata(_gadget);
 

@@ -409,7 +409,7 @@ static void netx4000_gmac_halt (struct eth_device *edev)
 	return;
 }
 
-static int netx4000_gmac_get_ethaddr(struct eth_device *edev, u8 addr[6])
+static int netx4000_gmac_get_ethaddr(struct eth_device *edev, u8 *addr)
 {
 	struct netx4000_gmac_priv *priv = edev->priv;
 	void __iomem *regbase = priv->base;
@@ -692,7 +692,7 @@ static int32_t netx4000_gmac_probe(struct device_d *dev)
 	priv->interface = of_get_phy_mode(dev->device_node);
 
 	/* read out the mac address from chip */
-	netx4000_gmac_get_ethaddr(&priv->edev, &priv->edev.ethaddr);
+	netx4000_gmac_get_ethaddr(&priv->edev, (u8*)&priv->edev.ethaddr);
 
 #if 0
 	/* TODO: Implementing support for the device label .*/

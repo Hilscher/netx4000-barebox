@@ -56,7 +56,7 @@ config I2C_VERSATILE
 	  range of platforms.
 
 config I2C_NETX4000
-	bool "I2C bus driver for netX4000 based platforms""
+	bool "I2C bus driver for netX4000 based platforms"
 	depends on ARCH_NETX4000
 	help
 	  This selects support for the I2C bus controllers on Hilscher netX4000 based platforms.
