@@ -25,6 +25,9 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 
 / {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
 	aliases {
 		serial0 = &uart0;
 		serial1 = &uart1;
@@ -216,8 +219,6 @@
 		pinctrl: pinctrl@fb100000 {
 			compatible = "pinctrl-single";
 			reg = <0xfb100000 0x800>;
-			#address-cells = <1>;
-			#size-cells = <0>;
 			pinctrl-single,register-width = <32>;
 			pinctrl-single,function-mask = <0xffff>;
 		};
@@ -369,14 +370,12 @@
 			status = "disabled";
 			compatible = "hilscher,iio-adc-netx4000";
 			reg = <0xf409ca00 100>;
-			vref = <3300>; /* mV */
 		};
 
 		adc1: adc@f409cb00 {
 			status = "disabled";
 			compatible = "hilscher,iio-adc-netx4000";
 			reg = <0xf409cb00 100>;
-			vref = <3300>; /* mV */
 		};
 
 		/* SPI */
@@ -431,9 +430,6 @@
 			dma-names = "rx", "tx";
 			pinctrl-names = "default";
 			pinctrl-0 = <&qspi0_pins>;
-
-			#address-cells = <1>;
-			#size-cells = <0>;
 		};
 
 		qspi1: qspi@f801d400 {
@@ -448,8 +444,6 @@
 			dma-names = "rx", "tx";
 			pinctrl-names = "default";
 			pinctrl-0 = <&qspi1_pins>;
-			#address-cells = <1>;
-			#size-cells = <0>;
 		};
 
 		/* USB */
