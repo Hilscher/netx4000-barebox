@@ -12,6 +12,8 @@ image=""
 [ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part2 /fitImage
 [ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part2 /boot/zImage
 [ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part2 /zImage
+[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part1 /vmlinuz
+[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part2 /vmlinuz
 [ -z "$image" ] && exit 1
 
 # rootfs: partition, image file (mandatory)
