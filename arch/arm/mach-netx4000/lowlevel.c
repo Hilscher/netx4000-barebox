@@ -33,8 +33,7 @@ extern void ddr400_init(void);
 extern void ddr600_init(void);
 
 #ifdef CONFIG_ENABLE_DDR_ECC
-extern void neon_memset(void* mem, int fill, unsigned long size);
-
+#include <mach/regdef_netx4000.h>
 static uint32_t __bare_init get_sdram_size(void) {
 	uint32_t tmp;
 	uint32_t max_row, max_col;
@@ -61,6 +60,56 @@ static uint32_t __bare_init get_sdram_size(void) {
 
 	return size;
 }
+
+void ddr_ecc_init()
+{
+	uint32_t sdram_size = get_sdram_size();
+	uint32_t ram_addr = NETX4000_DDR_ADDR_SPACE_START;
+	uint32_t chunk_size = sdram_size / 8;
+	uint64_t fill_char[2] = {0,0};
+	int ch;
+	NX4000_RAP_DMAC_CH_AREA_T*  dmach;
+	NX4000_RAP_DMAC_REG_AREA_T* dmareg;
+
+	dmareg = (NX4000_RAP_DMAC_REG_AREA_T*)Addr_NX4000_RAP_DMAC0_REG;
+
+	/* Setup 8 DMA channels to clear DDR */
+	for(ch=0;ch<8;ch++) {
+		dmach = (NX4000_RAP_DMAC_CH_AREA_T*)(Addr_NX4000_RAP_DMAC0 + ch * 0x40);
+
+		/* Reset */
+		dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREN;
+		dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SWRST;
+
+		/* Setup and start */
+		dmach->asRAP_DMAC_CH_N[0].ulSA = (uint32_t)&fill_char[0];
+		dmach->asRAP_DMAC_CH_N[0].ulDA = (uint32_t)(ram_addr + ch * chunk_size);
+		dmach->asRAP_DMAC_CH_N[0].ulTB = chunk_size;
+		dmach->ulRAP_DMAC_CH_CHCFG = MSK_NX4000_RAP_DMAC_CH_CHCFG_SAD |        /* no source increment */
+					     MSK_NX4000_RAP_DMAC_CH_CHCFG_TM  |        /* Block transfer */
+					     (4 << SRT_NX4000_RAP_DMAC_CH_CHCFG_DDS) | /* 128 bit dest size */
+					     (4 << SRT_NX4000_RAP_DMAC_CH_CHCFG_SDS);  /* 128 Bit source size */
+		dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SETEN |
+					      MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLRSUS;
+		dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_STG;       /* Software triggered DMA */
+	}
+
+	/* Wait for DMA to finish */
+	while((dmareg->ulRAP_DMAC_REG_DST_END & 0xFF) != 0xFF) ;
+
+	/* Reset all DMA channels */
+	for(ch=0;ch<8;ch++) {
+		dmach = (NX4000_RAP_DMAC_CH_AREA_T*)(Addr_NX4000_RAP_DMAC0 + ch * 0x40);
+		dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREN;
+		dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SWRST;
+		dmach->ulRAP_DMAC_CH_CHCFG = DFLT_VAL_NX4000_RAP_DMAC_CH_CHCFG;
+		dmach->asRAP_DMAC_CH_N[0].ulSA = 0;
+		dmach->asRAP_DMAC_CH_N[0].ulDA = 0;
+		dmach->asRAP_DMAC_CH_N[0].ulTB = 0;
+	}
+}
+#else
+void ddr_ecc_init() {}
 #endif
 
 void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
@@ -98,14 +147,7 @@ void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
 	__asm__ __volatile__("vmsr fpexc,r0");             /* enable most advanced SIMD and VFP instructions */
 
 	/* initialize memory to safely enable ecc */
-#ifdef CONFIG_ENABLE_DDR_ECC
-	{
-		uint32_t sdram_size = get_sdram_size();
-		uint32_t* volatile ram_addr = (uint32_t* volatile)NETX4000_DDR_ADDR_SPACE_START;
-
-		neon_memset(ram_addr, 0, sdram_size);
-	}
-#endif
+	ddr_ecc_init();
 
 	barebox_arm_entry(NETX4000_DDR_ADDR_SPACE_START, SZ_128M, 0);
 }
