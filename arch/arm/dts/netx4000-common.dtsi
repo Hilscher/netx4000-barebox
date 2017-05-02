@@ -104,6 +104,15 @@
 		clocks = <&arm_periph_clk>;
 	};
 
+	local-timer@faf00600 {
+		status = "disabled";
+		compatible = "arm,cortex-a9-twd-timer";
+		reg = <0xfaf00600 0x20>;
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_PPI (29-16) IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&arm_periph_clk>;
+	};
+
 	/* Clock */
 
 	clocks {
