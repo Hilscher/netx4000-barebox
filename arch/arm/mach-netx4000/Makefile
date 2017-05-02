@@ -14,6 +14,10 @@
 # GNU General Public License for more details.
 #
 #
+
+# netx4000_regdef.h brings typedefs for all modules,
+# which throws a warning about unused typedefs
+CFLAGS:=$(filter-out -Wunused-local-typedefs,$(CFLAGS))
+
 obj-$(CONFIG_ARCH_NETX4000) += lowlevel.o generic.o ddr400-init.o ddr600-init.o
-obj-$(CONFIG_ENABLE_DDR_ECC) += neon_memset.o
 obj-$(CONFIG_CACHE_L2X0) += cache-l2x0.o
