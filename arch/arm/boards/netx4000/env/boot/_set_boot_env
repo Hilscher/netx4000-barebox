@@ -8,9 +8,7 @@ if [ "$func" = "image" ]; then
 	mp=$2
 	path=$3
 	if [ -L $mp$path -o -f $mp$path ]; then
-		readlink $mp$path link
-		[ -z "$link" ] && link="$path"
-		image="$mp$link"
+		readlink -f $mp$path image || image="$mp$path"
 	fi
 fi
 
@@ -20,9 +18,7 @@ if [ "$func" = "initrd" ]; then
 	mp=$2
 	path=$3
 	if [ -L $mp$path -o -f $mp$path ]; then
-		readlink $mp$path link
-		[ -z "$link" ] && link="$path"
-		initrd="$mp$link"
+		readlink -f $mp$path initrd || initrd="$mp$path"
 	fi
 fi
 
@@ -32,8 +28,6 @@ if [ "$func" = "oftree" ]; then
 	mp=$2
 	path=$3
 	if [ -L $mp$path -o -f $mp$path ]; then
-		readlink $mp$path link
-		[ -z "$link" ] && link="$path"
-		oftree="$mp$link"
+		readlink -f $mp$path oftree || oftree="$mp$path"
 	fi
 fi
