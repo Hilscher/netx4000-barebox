@@ -908,7 +908,7 @@ static int smc35x_nand_probe(struct device_d *dev)
 
 /** smc35x nand driver -> device registered by platforms */
 static struct of_device_id smc35x_nand_id_table[] = {
-	{ .compatible = "arm,smc35x-nand" },	/* am335x devices */
+	{ .compatible = "arm,pl353-nand-r2p1" },
 	{ }
 };
 

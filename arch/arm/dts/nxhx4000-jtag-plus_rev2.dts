@@ -45,7 +45,7 @@
 		status = "disabled";
 		pinctrl-names = "default";
 		pinctrl-0 = <&nand8_pins>;
-		compatible = "arm,smc35x-nand";
+		compatible = "arm,pl353-nand-r2p1";
 		reg = <0x0a000000 0x1000000>;
 		cs-addr = <0x0a>;
 		if = <1>; /* interface */
