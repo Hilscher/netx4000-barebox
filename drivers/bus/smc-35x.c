@@ -595,7 +595,6 @@ static int configure_nor_interface(struct device_node *dev_node,
 		smc_plat_data->timing = setup_sram_parameter_from_dt(dev_node,
 								     smc_plat_data,
 						       &smc_t);
-		smc_plat_data->bw = PL353_SMC_MEM_WIDTH_16;
 		pl353_smc_update_register(smc_plat_data);
 	}
 	return ret;
@@ -621,7 +620,6 @@ static int configure_sram_interface(struct device_node *dev_node,
 						       &smc_t);
 
 		pl353_smc_set_refresh_period(smc_plat_data, period);
-		smc_plat_data->bw = PL353_SMC_MEM_WIDTH_16;
 		pl353_smc_update_register(smc_plat_data);
 	}
 	return ret;
@@ -644,8 +642,6 @@ static int configure_nand_interface(struct device_node *dev_node,
 		smc_plat_data->timing = setup_nand_parameter_from_dt(dev_node,
 								     smc_plat_data,
 						       &smc_t);
-
-		smc_plat_data->bw = PL353_SMC_MEM_WIDTH_16;
 		pl353_smc_update_register(smc_plat_data);
 	}
 	return ret;
@@ -664,6 +660,7 @@ static int smc35x_probe_nor_child(struct smc_data *smc_data,
 	u32 ifc;
 	u32 cs;
 	int ret;
+	int bw;
 
 	if (of_property_read_u32(child, "if", &ifc) < 0) {
 		dev_err(smc_data->dev, "%s has no 'if' property\n",
@@ -675,8 +672,14 @@ static int smc35x_probe_nor_child(struct smc_data *smc_data,
 			child->full_name);
 		return -ENODEV;
 	}
+	if (of_property_read_u32(child, "bank-width", &bw) < 0) {
+		dev_warn(smc_data->dev, "No bank-width given for NOR - defaulting to 8bit");
+		bw = 1;
+	}
 	smc_plat_data->cs = (3 & cs);
 	smc_plat_data->ifc = (1 & ifc);
+	/* we only support 8 or 16 bit */
+	smc_plat_data->bw = (bw == 1) ? PL353_SMC_MEM_WIDTH_8 : PL353_SMC_MEM_WIDTH_16;
 	smc_plat_data->of_node = child;
 	smc_plat_data->base = smc_data->smc_base;
 	smc_plat_data->parent = smc_data;
@@ -706,6 +709,7 @@ static int smc35x_probe_sram_child(struct smc_data *smc_data,
 	u32 ifc;
 	u32 cs;
 	int ret;
+	int bw;
 
 	if (of_property_read_u32(child, "if", &ifc) < 0) {
 		dev_err(smc_data->dev, "%s has no 'if' property\n",
@@ -717,8 +721,14 @@ static int smc35x_probe_sram_child(struct smc_data *smc_data,
 			child->full_name);
 		return -ENODEV;
 	}
+	if (of_property_read_u32(child, "bank-width", &bw) < 0) {
+		dev_warn(smc_data->dev, "No bank-width given for SRAM - defaulting to 8bit");
+		bw = 1;
+	}
 	smc_plat_data->cs = (3 & cs);
 	smc_plat_data->ifc = (1 & ifc);
+	/* we only support 8 or 16 bit */
+	smc_plat_data->bw = (bw == 1) ? PL353_SMC_MEM_WIDTH_8 : PL353_SMC_MEM_WIDTH_16;
 	smc_plat_data->of_node = child;
 	smc_plat_data->base = smc_data->smc_base;
 	smc_plat_data->parent = smc_data;
@@ -762,6 +772,8 @@ static int smc35x_probe_nand_child(struct smc_data *smc_data,
 
 	smc_plat_data->cs = (3 & cs);
 	smc_plat_data->ifc = (1 & ifc);
+	/* NAND always starts at 8bit */
+	smc_plat_data->bw = PL353_SMC_MEM_WIDTH_8;
 	smc_plat_data->of_node = child;
 	smc_plat_data->base = smc_data->smc_base;
 	smc_plat_data->parent = smc_data;
