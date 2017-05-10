@@ -19,5 +19,5 @@
 # which throws a warning about unused typedefs
 CFLAGS:=$(filter-out -Wunused-local-typedefs,$(CFLAGS))
 
-obj-$(CONFIG_ARCH_NETX4000) += lowlevel.o generic.o ddr400-init.o ddr600-init.o
+obj-$(CONFIG_ARCH_NETX4000) += lowlevel.o generic.o ddr400-init.o ddr600-init.o device-label.o
 obj-$(CONFIG_CACHE_L2X0) += cache-l2x0.o
