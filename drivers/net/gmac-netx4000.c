@@ -29,6 +29,7 @@
 #include "asm/system.h" /* required by dmb() */
 
 #include <digest.h>
+#include <environment.h>
 
 #include "gmac-netx4000.h"
 
@@ -302,7 +303,7 @@ static int32_t netx4000_gmac_recv (struct eth_device *edev)
 	start = get_time_ns();
 	while (rxdesc->des3 & RDES3_OWN) {
 		if (is_timeout(start, 100 * MSECOND)) {
-			dev_err(edev->parent, "RX timed out - no descriptor available!\n");
+			dev_dbg(edev->parent, "RX timed out - no descriptor available!\n");
 			return -EIO;
 		}
 	}
@@ -694,20 +695,43 @@ static int32_t netx4000_gmac_probe(struct device_d *dev)
 	/* read out the mac address from chip */
 	netx4000_gmac_get_ethaddr(&priv->edev, (u8*)&priv->edev.ethaddr);
 
-#if 0
-	/* TODO: Implementing support for the device label .*/
-	/* if the mac address is invalid, use the mac address from device label instead */
-	if (priv->edev.ethaddr[0] == 0xff) { /* device label */
-		dev_warn(dev, "using mac addrress from device label (%02x:%02x:%02x:%02x:%02x:%02x)\n"
+	/* if the mac address is invalid, use the mac address from bareboxenv instead */
+	if (priv->edev.ethaddr[0] == 0xff) { /* bareboxenv */
+		const char *ethaddr;
+
+		if (!getenv("eth0.ethaddr"))
+			ethaddr = getenv("global.eth0_ethaddr");
+		else
+			ethaddr = getenv("global.eth1_ethaddr");
+
+		if (ethaddr) {
+			string_to_ethaddr(ethaddr, priv->edev.ethaddr);
+			dev_info(dev, "using mac address from bareboxenv (%02x:%02x:%02x:%02x:%02x:%02x)\n"
 				, priv->edev.ethaddr[0], priv->edev.ethaddr[1], priv->edev.ethaddr[2], priv->edev.ethaddr[3], priv->edev.ethaddr[4], priv->edev.ethaddr[5]);
+		}
 	}
-#endif
+
+	/* if the mac address is still invalid, use the mac address from devicelabel instead */
+	if (priv->edev.ethaddr[0] == 0xff) { /* device label */
+		const char *ethaddr;
+
+		if (!getenv("eth0.ethaddr"))
+			ethaddr = getenv("devicelabel_eth0_ethaddr");
+		else
+			ethaddr = getenv("devicelabel_eth1_ethaddr");
+
+		if (ethaddr) {
+			string_to_ethaddr(ethaddr, priv->edev.ethaddr);
+			dev_info(dev, "using mac address from devicelable (%02x:%02x:%02x:%02x:%02x:%02x)\n"
+				, priv->edev.ethaddr[0], priv->edev.ethaddr[1], priv->edev.ethaddr[2], priv->edev.ethaddr[3], priv->edev.ethaddr[4], priv->edev.ethaddr[5]);
+		}
+	}
 
 	/* if the mac address is still invalid, use the mac address from the fdt instead */
 	if (priv->edev.ethaddr[0] == 0xff) { /* fdt */
 		if (of_get_mac_address(dev->device_node)) {
 			memcpy(priv->edev.ethaddr, of_get_mac_address(dev->device_node), sizeof(priv->edev.ethaddr));
-			dev_warn(dev, "using mac addrress from fdt (%02x:%02x:%02x:%02x:%02x:%02x)\n"
+			dev_info(dev, "using mac address from fdt (%02x:%02x:%02x:%02x:%02x:%02x)\n"
 					, priv->edev.ethaddr[0], priv->edev.ethaddr[1], priv->edev.ethaddr[2], priv->edev.ethaddr[3], priv->edev.ethaddr[4], priv->edev.ethaddr[5]);
 		}
 	}
@@ -747,7 +771,7 @@ static int __init netx4000_gmac_init(void)
 	pr_info("%s: %s\n", DRIVER_NAME, DRIVER_DESC);
 	return platform_driver_register(&netx4000_gmac_driver);
 }
-late_initcall(netx4000_gmac_init);
+postenvironment_initcall(netx4000_gmac_init);
 
 /* --- Module information --- */
 
