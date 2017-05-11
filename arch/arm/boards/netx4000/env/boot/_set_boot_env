@@ -7,9 +7,13 @@ func=$1
 if [ "$func" = "image" ]; then
 	mp=$2
 	path=$3
-	if [ -L $mp$path -o -f $mp$path ]; then
-		readlink -f $mp$path image || image="$mp$path"
-	fi
+        if [ -L $mp$path ]; then
+                readlink -f $mp$path image
+                readlink $mp$path link
+                [ "$image" = "$link" ] && image=$mp$image
+        elif [ -f $mp$path ]; then
+                image="$mp$path"
+        fi
 fi
 
 # func: initrd
@@ -17,9 +21,13 @@ fi
 if [ "$func" = "initrd" ]; then
 	mp=$2
 	path=$3
-	if [ -L $mp$path -o -f $mp$path ]; then
-		readlink -f $mp$path initrd || initrd="$mp$path"
-	fi
+	if [ -L $mp$path ]; then
+                readlink -f $mp$path initrd
+                readlink $mp$path link
+                [ "$initrd" = "$link" ] && initrd=$mp$initrd
+        elif [ -f $mp$path ]; then
+                initrd="$mp$path"
+        fi
 fi
 
 # func: oftree
@@ -27,7 +35,11 @@ fi
 if [ "$func" = "oftree" ]; then
 	mp=$2
 	path=$3
-	if [ -L $mp$path -o -f $mp$path ]; then
-		readlink -f $mp$path oftree || oftree="$mp$path"
-	fi
+        if [ -L $mp$path ]; then
+                readlink -f $mp$path oftree
+                readlink $mp$path link
+                [ "$oftree" = "$link" ] && oftree=$mp$oftree
+        elif [ -f $mp$path ]; then
+                oftree="$mp$path"
+        fi
 fi
