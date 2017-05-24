@@ -471,7 +471,41 @@
 			reg = <0xf8004000 0x2000>;
 			interrupts = <GIC_SPI (178-32) IRQ_TYPE_LEVEL_HIGH>, <GIC_SPI (179-32) IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "irq_u2f", "irq_u2fepc";
+
 			clocks = <&periph_clk>;
+		};
+
+		/* CAN */
+
+		can0: can@f8030000 {
+			status = "disabled";
+			compatible = "hilscher,netx4000-can";
+			reg = <0xf8030000 0x4000>;
+			interrupts = <GIC_SPI (110-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (111-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (112-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (113-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (114-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (115-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (116-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (117-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (118-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (119-32) IRQ_TYPE_LEVEL_HIGH>,
+			             <GIC_SPI (120-32) IRQ_TYPE_LEVEL_HIGH>;
+			interrupt-names = "cherrint0",
+			                  "cherrint1",
+			                  "cherrint2",
+			                  "rxfint",
+			                  "comfrxint0",
+			                  "comfrxint1",
+			                  "comfrxint2",
+			                  "glerrint",
+			                  "txint0",
+			                  "txint1",
+			                  "txint2";
+			clocks = <&periph_clk>;
+
+//			channels = <0 1 2>; /* list of enabled channels */
 		};
 
 		/* GMAC */
@@ -663,6 +697,27 @@
 		pinctrl-single,pins = <
 			MUX_PIN(5,4)  (REEMUX_3 | REEMUX_DRV_06MA | REEMUX_UDC_NONE)        // OCI2
 			MUX_PIN(5,5)  (REEMUX_3 | REEMUX_DRV_06MA | REEMUX_UDC_NONE)        // PPON2
+		>;
+	};
+
+	can0_0_pins: can0_0_pins {
+		pinctrl-single,pins = <
+			MUX_PIN(5,11)  (REEMUX_2 | REEMUX_DRV_06MA | REEMUX_UDC_PULLUP50K)   // MMIO43 => GPIO2_11 => rx
+			MUX_PIN(5,12)  (REEMUX_2 | REEMUX_DRV_06MA | REEMUX_UDC_NONE)        // MMIO44 => GPIO2_12 => tx
+		>;
+	};
+
+	can0_1_pins: can0_1_pins {
+		pinctrl-single,pins = <
+			MUX_PIN(5,13)  (REEMUX_2 | REEMUX_DRV_06MA | REEMUX_UDC_PULLUP50K)   // MMIO45 => GPIO2_13 => rx
+			MUX_PIN(5,14)  (REEMUX_2 | REEMUX_DRV_06MA | REEMUX_UDC_NONE)        // MMIO46 => GPIO2_14 => tx
+		>;
+	};
+
+	can0_2_pins: can0_2_pins {
+		pinctrl-single,pins = <
+			MUX_PIN(6,14)  (REEMUX_2 | REEMUX_DRV_06MA | REEMUX_UDC_PULLUP50K)   // MMIO62 => GPIO2_30 => rx
+			MUX_PIN(6,15)  (REEMUX_2 | REEMUX_DRV_06MA | REEMUX_UDC_NONE)        // MMIO63 => GPIO2_31 => rx
 		>;
 	};
 
