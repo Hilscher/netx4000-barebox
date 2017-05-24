@@ -207,6 +207,15 @@
 	pinctrl-0 = <&hcd0_0_pins &hcd0_1_pins>;
 };
 
+&can0 {
+	status = "ok";
+
+	channels = <0 1>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&can0_0_pins &can0_1_pins>;
+};
+
 &gmac0 {
 	status = "ok";
 	phy-handle = <&phy0>;
