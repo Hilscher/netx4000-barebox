@@ -9,6 +9,7 @@ dtc-objs	+= dtc-lexer.lex.o dtc-parser.tab.o
 
 libfdt-objs	= fdt.o fdt_ro.o fdt_strerror.o fdt_wip.o
 libfdt-objs	+= fdt_empty_tree.o fdt_rw.o fdt_sw.o
+libfdt-objs	+= fdt_overlay.o
 
 fdtget-objs	+= fdtget.o $(libfdt-objs) util.o
 
@@ -27,6 +28,7 @@ HOSTCFLAGS_treesource.o := $(HOSTCFLAGS_DTC)
 HOSTCFLAGS_util.o := $(HOSTCFLAGS_DTC)
 
 HOSTCFLAGS_fdt.o := $(HOSTCFLAGS_DTC)
+HOSTCFLAGS_fdt_overlay.o := $(HOSTCFLAGS_DTC)
 HOSTCFLAGS_fdt_ro.o := $(HOSTCFLAGS_DTC)
 HOSTCFLAGS_fdt_strerror.o := $(HOSTCFLAGS_DTC)
 HOSTCFLAGS_fdt_wip.o := $(HOSTCFLAGS_DTC)
