@@ -61,7 +61,7 @@ static uint32_t __bare_init get_sdram_size(void) {
 	return size;
 }
 
-void ddr_ecc_init()
+void ddr_ecc_init(void)
 {
 	uint32_t sdram_size = get_sdram_size();
 	uint32_t ram_addr = NETX4000_DDR_ADDR_SPACE_START;
@@ -109,7 +109,7 @@ void ddr_ecc_init()
 	}
 }
 #else
-void ddr_ecc_init() {}
+void ddr_ecc_init(void) {}
 #endif
 
 void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)

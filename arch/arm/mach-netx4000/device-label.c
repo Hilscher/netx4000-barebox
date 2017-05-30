@@ -48,7 +48,7 @@ static int __init netx4000_device_label_init(void)
 	pr_info(" ... found\n");
 
 	p1 = buf;
-	while (p1 < (buf+len)) {
+	while (p1 < (char*)(buf+len)) {
 		/* Skip comment and empty lines */
 		if ((*p1 == '#') || (*p1 == '\n')) {
 			p1 = strstr(p1, "\n") + 1;

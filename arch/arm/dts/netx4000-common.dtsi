@@ -37,7 +37,7 @@
 		spi1 = &spi1;
 	};
 
-	environment@0 {
+	environment {
 		compatible = "barebox,environment";
 		device-path = &sdmmc0, "partname:0";
 		file-path = "bareboxenv";
