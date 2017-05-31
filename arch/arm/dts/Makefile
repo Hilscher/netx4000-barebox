@@ -78,7 +78,8 @@ pbl-dtb-$(CONFIG_MACH_VARISCITE_MX6) += imx6q-var-custom.dtb.o
 
 clean-files := *.dtb *.dtb.S .*.dtc .*.pre .*.dts *.dtb.lzo
 
-# Enable symbol generation to support dt-overlays on Hilscher netX4000 based platforms.
+# Enable dt-overlay support on Hilscher netX4000 based platforms.
 ifeq ($(CONFIG_ARCH_NETX4000),y)
 	DTC_FLAGS ?= -@
+	subdir-y = netx4000/overlays
 endif
