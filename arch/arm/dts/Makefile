@@ -115,3 +115,8 @@ pbl-dtb-$(CONFIG_MACH_AT91SAM9263EK_DT) += at91sam9263ek.dtb.o
 pbl-dtb-$(CONFIG_MACH_AT91SAM9X5EK) += at91sam9x5ek.dtb.o
 
 clean-files := *.dtb *.dtb.S .*.dtc .*.pre .*.dts *.dtb.lzo
+
+# Enable symbol generation to support dt-overlays on Hilscher netX4000 based platforms.
+ifeq ($(CONFIG_ARCH_NETX4000),y)
+	DTC_FLAGS ?= -@
+endif
