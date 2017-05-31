@@ -77,3 +77,8 @@ pbl-dtb-$(CONFIG_MACH_USI_TOPKICK) += kirkwood-topkick-bb.dtb.o
 pbl-dtb-$(CONFIG_MACH_VARISCITE_MX6) += imx6q-var-custom.dtb.o
 
 clean-files := *.dtb *.dtb.S .*.dtc .*.pre .*.dts *.dtb.lzo
+
+# Enable symbol generation to support dt-overlays on Hilscher netX4000 based platforms.
+ifeq ($(CONFIG_ARCH_NETX4000),y)
+	DTC_FLAGS ?= -@
+endif
