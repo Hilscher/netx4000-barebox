@@ -9,7 +9,7 @@ CONFIG_ARM_LINUX=y
 # System Type
 #
 CONFIG_BUILTIN_DTB=y
-CONFIG_BUILTIN_DTB_NAME="nxhx4000-jtag-plus"
+CONFIG_BUILTIN_DTB_NAME="netx4000/nxhx4000-jtag-plus-rev2"
 # CONFIG_ARCH_AT91 is not set
 # CONFIG_ARCH_BCM2835 is not set
 # CONFIG_ARCH_BCM2836 is not set
