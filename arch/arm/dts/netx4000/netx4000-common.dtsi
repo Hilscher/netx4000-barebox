@@ -18,8 +18,8 @@
 *
 */
 
-#include <dt-bindings/pinctrl/netx4000.h>
-#include <dt-bindings/video/netx4000.h>
+#include "dt-bindings/pinctrl/netx4000.h"
+#include "dt-bindings/video/netx4000.h"
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/dma/nbpfaxi.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
