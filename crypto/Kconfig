@@ -85,6 +85,15 @@ config DIGEST_SHA256_ARM
 	  SHA-256 secure hash standard (DFIPS 180-2) implemented
 	  using optimized ARM assembler and NEON, when available.
 
+config DIGEST_SHA512_ARM
+	tristate "SHA-384/512 digest algorithm (ARM-asm and NEON)"
+	depends on ARM
+	select SHA512
+	select SHA384
+	help
+	  SHA-512 secure hash standard (DFIPS 180-2) implemented
+	  using optimized ARM assembler and NEON, when available.
+
 endif
 
 config CRYPTO_PBKDF2
