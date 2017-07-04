@@ -713,14 +713,18 @@ static int32_t netx4000_gmac_probe(struct device_d *dev)
 
 	/* if the mac address is still invalid, use the mac address from devicelabel instead */
 	if (priv->edev.ethaddr[0] == 0xff) { /* device label */
-		const char *ethaddr;
+		const char *env_ethaddr = NULL;
+		char ethaddr[18] = "\0";
 
 		if (!getenv("eth0.ethaddr"))
-			ethaddr = getenv("devicelabel_eth0_ethaddr");
+			env_ethaddr = getenv("devicelabel_eth0_ethaddr");
 		else
-			ethaddr = getenv("devicelabel_eth1_ethaddr");
+			env_ethaddr = getenv("devicelabel_eth1_ethaddr");
 
-		if (ethaddr) {
+		if (env_ethaddr) {
+			if ((env_ethaddr[0] == '"') || (env_ethaddr[0] == '\''))
+				env_ethaddr++;
+			strncat(ethaddr, env_ethaddr, 17);
 			string_to_ethaddr(ethaddr, priv->edev.ethaddr);
 			dev_info(dev, "using mac address from devicelable (%02x:%02x:%02x:%02x:%02x:%02x)\n"
 				, priv->edev.ethaddr[0], priv->edev.ethaddr[1], priv->edev.ethaddr[2], priv->edev.ethaddr[3], priv->edev.ethaddr[4], priv->edev.ethaddr[5]);
