@@ -25,13 +25,16 @@
 #include <driver.h>
 #include <init.h>
 #include <usb/ehci.h>
+#include <linux/clk.h>
 #include "ehci.h"
 
+#include <mach/hardware.h>
 #include "ehci-netx4000.h"
 
 struct netx4000_ehci_priv {
 	struct device_d *dev;
 	USB_HOST_AREA_T *regbase;
+	struct clk *clk;
 
 	unsigned int num_ports;
 
@@ -68,28 +71,6 @@ static inline int32_t ioclear32(uint32_t clearmask, void *addr)
 	return 0;
 }
 
-/* FIXME: Move it to common platform code */
-#define NETX4000_SYSTEMCTRL_VIRT_BASE 0xf8000000
-#define NOCPWRCTRL	(NETX4000_SYSTEMCTRL_VIRT_BASE + 0x40)
-#define NOCPWRMASK	(NETX4000_SYSTEMCTRL_VIRT_BASE + 0x44)
-#define	NOCPWRSTAT	(NETX4000_SYSTEMCTRL_VIRT_BASE + 0x48)
-#define CLKCFG		(NETX4000_SYSTEMCTRL_VIRT_BASE + 0x4c)
-#define NETX4000_USB_CLOCK_EN	(1 << 0)
-static int32_t netx4000_periph_clock_enable(uint32_t mask)
-{
-	uint64_t start;
-
-	start = get_time_ns();
-	while ((readl(NOCPWRSTAT) & mask) != mask) {
-		if (is_timeout(start, 100 * MSECOND))
-			return -1;
-		ioset32(mask, (void *)CLKCFG);
-		ioset32(mask, (void *)NOCPWRMASK);
-		ioset32(mask, (void *)NOCPWRCTRL);
-	}
-	return 0;
-}
-
 static int netx4000_ehci_chip_reset(struct netx4000_ehci_priv *priv)
 {
 	ioset32((0x3 << 10) | /* win1 size 2gb */
@@ -115,7 +96,7 @@ static int netx4000_ehci_chip_init(struct netx4000_ehci_priv *priv)
 	if (priv->num_ports > 1)
 		netx4000_ehci_h2mode_enable();
 
-	if (netx4000_periph_clock_enable(NETX4000_USB_CLOCK_EN)) {
+	if(clk_enable(priv->clk)) {
 		dev_err(priv->dev, "netx4000_periph_clock_enable() failed\n");
 		return -EIO;
 	}
@@ -207,6 +188,12 @@ static int netx4000_ehci_probe(struct device_d *dev)
 	res_mem = dev_request_mem_resource(dev, 0);
 	if (IS_ERR(res_mem))
 		return PTR_ERR(res_mem);
+
+	priv->clk = clk_get(dev, NULL);
+	if (IS_ERR(priv->clk)) {
+		dev_err(dev, "Unable to get clock");
+		return PTR_ERR(res_mem);
+	}
 
 	rc = of_property_read_u32(dev->device_node, "num-ports", &num_ports);
 	if (rc) {

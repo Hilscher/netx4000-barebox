@@ -472,15 +472,9 @@ static int sdmmc_probe(struct device_d *dev)
 {
 	struct sdmmc_host *host;
 	struct mci_host *mci;
-	u32 volatile *RapSysPwrCtrl = (u32 volatile*)0xf8000040;
-	u32 volatile *RapSysClkCtrl = (u32 volatile*)0xf800004c;
 
 	host = xzalloc(sizeof(*host));
 	mci = &host->mci;
-
-	*RapSysPwrCtrl |= (1<<2);
-	*RapSysClkCtrl |= (1<<2);
-
 
 	host->clk = clk_get(dev, NULL);
 	if (IS_ERR(host->clk))

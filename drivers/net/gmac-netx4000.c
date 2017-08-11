@@ -26,6 +26,7 @@
 #include <of_net.h>
 #include <io.h>
 #include <dma.h>
+#include <linux/clk.h>
 #include "asm/system.h" /* required by dmb() */
 
 #include <digest.h>
@@ -35,6 +36,7 @@
 
 struct netx4000_gmac_priv {
 	void __iomem *base;
+	struct clk* clk;
 
 	struct dummy_desc *rx_chain;
 	struct dummy_desc *tx_chain;
@@ -489,27 +491,6 @@ static int32_t init_rx_desc(struct netx4000_gmac_priv *priv)
 	return 0;
 }
 
-/* FIXME: Move it to a common platform code */
-#define NOCPWRCTRL	0xf8000040
-#define NOCPWRMASK	0xf8000044
-#define	NOCPWRSTAT	0xf8000048
-#define CLKCFG		0xf800004c
-#define GMAC_CLOCK	(1 << 3)
-static int32_t netx4000_gmac_clock_enable(void)
-{
-	uint64_t start;
-
-	start = get_time_ns();
-	while ((readl(NOCPWRSTAT) & GMAC_CLOCK) == 0) {
-		if (is_timeout(start, 100 * MSECOND))
-			return -1;
-		netx4000_ioset32(GMAC_CLOCK, (void *)CLKCFG);
-		netx4000_ioset32(GMAC_CLOCK, (void *)NOCPWRMASK);
-		netx4000_ioset32(GMAC_CLOCK, (void *)NOCPWRCTRL);
-	}
-	return 0;
-}
-
 static int32_t netx4000_gmac_dma_init(struct netx4000_gmac_priv *priv)
 {
 	void __iomem *regbase = priv->base;
@@ -663,8 +644,16 @@ static int32_t netx4000_gmac_probe(struct device_d *dev)
 		goto err_out;
 	}
 
-	if (netx4000_gmac_clock_enable() < 0) {
-		dev_err(dev, "GMAC clock setup failed\n");
+	priv->clk = clk_get(dev, NULL);
+	if(IS_ERR(priv->clk)) {
+		dev_err(dev, "Unable to get GMAC clock\n");
+		rc = PTR_ERR(priv->clk);
+		goto err_out;
+	}
+
+	rc = clk_enable(priv->clk);
+	if (rc) {
+		dev_err(dev, "Unable to enable GMAC clock\n");
 		rc = -EIO;
 		goto err_out;
 	}
