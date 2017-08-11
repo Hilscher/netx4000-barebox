@@ -26,7 +26,7 @@
 #include <init.h>
 #include <io.h>
 #include <usb/gadget.h>
-
+#include <linux/clk.h>
 #include <mach/hardware.h>
 
 #define ioset32(setmask, addr)	{uint32_t val32; val32 = ioread32(addr); iowrite32(val32 | setmask, addr);}
@@ -196,6 +196,7 @@ struct priv_usb_ep {
 
 struct priv_data {
 	void				*ba; /* baseaddr */
+	struct clk *clk;
 	int					irq_u2f;
 	int					irq_u2fepc;
 	uint16_t					devstatus;
@@ -1201,36 +1202,12 @@ static int netx4000_udc_u2f_epc_isr(int irq, void *_pdata)
 
 /* ---------- Chip/Driver initialization ---------> */
 
-/* TODO: The clock and reset handling should be moved to platform specific code. */
-#define NETX4000_SYSTEMCTRL_VIRT_BASE 0xf8000000
-#define NOCPWRCTRL				(NETX4000_SYSTEMCTRL_VIRT_BASE + 0x40)
-#define NOCPWRMASK				(NETX4000_SYSTEMCTRL_VIRT_BASE + 0x44)
-#define	NOCPWRSTAT				(NETX4000_SYSTEMCTRL_VIRT_BASE + 0x48)
-#define CLKCFG					(NETX4000_SYSTEMCTRL_VIRT_BASE + 0x4c)
-#define NETX4000_USB_CLOCK_EN	(1 << 0)
-
 #define USB2CFG							(NETX4000_SYSTEMCTRL_VIRT_BASE + 0x10)
 #define netx4000_usb_power_up()			(ioclear32(0x1, (void*)USB2CFG))
 #define netx4000_usb_power_down()		(ioset32(0x1, (void*)USB2CFG))
 #define netx4000_ehci_h2mode_disable()	(ioclear32(0x2, (void*)USB2CFG))
 #define netx4000_ehci_h2mode_enable()	(ioset32(0x2, (void*)USB2CFG))
 #define is_func_port_enabled()			(!(ioread32((void*)USB2CFG) & 0x2))
-
-static int32_t netx4000_periph_clock_enable(uint32_t mask)
-{
-	uint64_t start;
-
-	start = get_time_ns();
-	while ((readl(NOCPWRSTAT) & mask) != mask) {
-		if (is_timeout(start, 100 * MSECOND))
-			return -1;
-		ioset32(mask, (void *)CLKCFG);
-		ioset32(mask, (void *)NOCPWRMASK);
-		ioset32(mask, (void *)NOCPWRCTRL);
-	}
-
-	return 0;
-}
 
 static int netx4000_udc_chip_turn_on(struct priv_data *_pdata)
 {
@@ -1271,7 +1248,7 @@ static int netx4000_udc_chip_init(struct priv_data *_pdata)
 	uint32_t n, ba=0 /* base address of internal RAM */;
 	int rc;
 
-	if (netx4000_periph_clock_enable(NETX4000_USB_CLOCK_EN)) {
+	if (clk_enable(pdata->clk)) {
 		pr_err("%s: netx4000_periph_clock_enable() failed\n", __func__);
 		return -EIO;
 	}
@@ -1376,6 +1353,12 @@ static int netx4000_udc_probe(struct device_d *dev)
 		return PTR_ERR(res_mem);
 	}
 	pdata->ba = IOMEM(res_mem->start);
+
+	pdata->clk = clk_get(dev, NULL);
+	if (IS_ERR(pdata->clk)) {
+		dev_err(dev, "Unable to get clock.\n");
+		return PTR_ERR(pdata->clk);
+	}
 
 	init_pdata(pdata);
 
