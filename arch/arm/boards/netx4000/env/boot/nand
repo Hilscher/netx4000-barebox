@@ -1,12 +1,14 @@
 #!/bin/sh
 
+DEV1="/dev/nand0.rootfs.ubi.rootfs"
+
 MP1="/mnt/part1"
 
 if [ -e /dev/nand0.rootfs ]; then
 	ubiattach /dev/nand0.rootfs
-	if [ -e /dev/nand0.rootfs.ubi.rootfs ]; then
+	if [ -e $DEV1 ]; then
 		mkdir -p $MP1
-		mount /dev/nand0.rootfs.ubi.rootfs $MP1 && echo "Succesfully mounted nand-flash (part1) to" $MP1 || echo "Unable to mount nand-flash (part1)"
+		mount $DEV1 $MP1 && echo "Succesfully mounted nand-flash (part1) to" $MP1 || echo "Unable to mount nand-flash (part1)"
 	fi
 fi
 
