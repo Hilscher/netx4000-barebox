@@ -14,7 +14,7 @@ global editcmd
 [ -z "${global.hostname}" ] && global.hostname=netx4000
 [ -z "${global.autoboot_timeout}" ] && global.autoboot_timeout=3
 magicvar -a global.autoboot_timeout "timeout in seconds before automatic booting"
-[ -z "${global.boot.default}" ] && global.boot.default=autoboot
+[ -z "${global.boot.default}" ] && global.boot.default="usb mmc nand"
 [ -z "${global.allow_color}" ] && global.allow_color=true
 magicvar -a global.allow_color "Allow color on the console (boolean)"
 [ -z "${global.editcmd}" ] && global.editcmd=sedit

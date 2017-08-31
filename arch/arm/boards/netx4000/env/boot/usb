@@ -1,14 +1,14 @@
 #!/bin/sh
 
-MP1="/mnt/part1"
-MP2="/mnt/part2"
-
 DEV1="/dev/disk0.0"
 DEV2="/dev/disk0.1"
 if [ -e /dev/disk0 ]; then
 	DEV1="/dev/disk1.0"
 	DEV2="/dev/disk1.1"
 fi
+
+MP1="/mnt/part1"
+MP2="/mnt/part2"
 
 usb
 if [ -e $DEV1 ]; then
