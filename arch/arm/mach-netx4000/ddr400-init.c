@@ -8,9 +8,10 @@
 #define PHYCTRL_CTL(n)   (*(volatile uint32_t*)(Adr_NX4000_DDR_PHY_DDR_PHY_FUNCCTRL + (n * 4)))
 
 
-void ddr400_init(void) {
+int ddr400_init(void) {
 	unsigned int tmp;
 	volatile uint32_t * RAP_SysCtrl = (volatile uint32_t *)0xf8000040;
+	int ecc;
 
 	//TODO: check status & power if we can enable clock manager
 	*RAP_SysCtrl |= 0x40; //enable ddr clock manager
@@ -18,8 +19,9 @@ void ddr400_init(void) {
 	*RAP_SysCtrl |= 0x40;
 
 	/* Only perform initialization if not done from a previous run / rom loader */
-	if(0 != (DDRCTRL_DENALI_CTL(0) & 0x1))
-		return;
+	if(0 != (DDRCTRL_DENALI_CTL(0) & 0x1)) {
+		return (DDRCTRL_DENALI_CTL(152) & 1) ? 1 : 0;
+	}
 
 	DDRCTRL_DENALI_CTL(0)  =  DENALI_CTL_00_DATA ;
 	DDRCTRL_DENALI_CTL(1)  =  DENALI_CTL_01_DATA ;
@@ -166,8 +168,10 @@ void ddr400_init(void) {
 	DDRCTRL_DENALI_CTL(142)  = DENALI_CTL_142_DATA ;
 #ifdef CONFIG_ENABLE_DDR_ECC
 	DDRCTRL_DENALI_CTL(152)  = DENALI_CTL_152_DATA | 0x1 ;
+	ecc = 1;
 #else
 	DDRCTRL_DENALI_CTL(152)  = DENALI_CTL_152_DATA & ~0x1 ;
+	ecc = 0;
 #endif
 	DDRCTRL_DENALI_CTL(153)  = DENALI_CTL_153_DATA ;
 
@@ -207,4 +211,6 @@ void ddr400_init(void) {
 		tmp = DDRCTRL_DENALI_CTL(61);
 
 	DDRCTRL_DENALI_CTL(62) = 0x100;
+
+	return ecc;
 }

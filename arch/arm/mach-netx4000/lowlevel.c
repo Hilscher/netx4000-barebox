@@ -29,10 +29,9 @@
 
 #include <mach/hardware.h>
 
-extern void ddr400_init(void);
-extern void ddr600_init(void);
+extern int ddr400_init(void);
+extern int ddr600_init(void);
 
-#ifdef CONFIG_ENABLE_DDR_ECC
 #include <mach/regdef_netx4000.h>
 static uint32_t __bare_init get_sdram_size(void) {
 	uint32_t tmp;
@@ -108,13 +107,11 @@ void ddr_ecc_init(void)
 		dmach->asRAP_DMAC_CH_N[0].ulTB = 0;
 	}
 }
-#else
-void ddr_ecc_init(void) {}
-#endif
 
 void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
 {
 	uint32_t cpu_rate;
+	int ecc;
 
 	arm_cpu_lowlevel_init();
 
@@ -124,9 +121,9 @@ void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
 
 	cpu_rate = get_netx4000_cpu_rate();
 	if (cpu_rate == 400000000)
-		ddr400_init();
+		ecc = ddr400_init();
 	else if ((cpu_rate == 600000000))
-		ddr600_init();
+		ecc = ddr600_init();
 	else
 		while (1); /* FIXME */
 
@@ -147,7 +144,8 @@ void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
 	__asm__ __volatile__("vmsr fpexc,r0");             /* enable most advanced SIMD and VFP instructions */
 
 	/* initialize memory to safely enable ecc */
-	ddr_ecc_init();
+	if (ecc)
+		ddr_ecc_init();
 
 	barebox_arm_entry(NETX4000_DDR_ADDR_SPACE_START, SZ_128M, 0);
 }
