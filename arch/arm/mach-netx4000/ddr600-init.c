@@ -2,7 +2,7 @@
 #include <mach/netx4000_regs.h>
 #include <mach/regdef_netx4000.h>
 
-#include <mach/ddr600.h>
+#include CONFIG_DDR600_RAM_INCLUDE
 
 #define DDRCTRL_DENALI_CTL(n)   (*(volatile uint32_t*)(Adr_NX4000_DDR_CTRL_CTL_00 + (n * 4)))
 #define PHYCTRL_CTL(n)   (*(volatile uint32_t*)(Adr_NX4000_DDR_PHY_DDR_PHY_FUNCCTRL + (n * 4)))
