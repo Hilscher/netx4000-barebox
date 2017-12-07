@@ -15,17 +15,42 @@
 # GNU General Public License for more details.
 #
 
-menu "netX4000 Features"
-	depends on MACH_NETX4000
+choice
+	prompt "DDR RAM Type"
 
-comment "Hardware Options"
+config DDR_RAM_IS43TR16256AL
+	bool "4Gbit (IS43TR16256AL)"
 
-comment "Further Options"
+config DDR_RAM_OUT_OF_TREE
+	bool "Out of tree DDR RAM parameters."
+	help
+		Select this to provide your own specific DDR RAM timing parameters.
+
+endchoice
+
+config DDR_RAM_OUT_OF_TREE_INCLUDE_400
+	string "Include file for out of tree DDR RAM parameters (400MHz)."
+	default "mach/is43tr16256al-400mhz-relaxed.h"
+	depends on DDR_RAM_OUT_OF_TREE
+
+config DDR_RAM_OUT_OF_TREE_INCLUDE_600
+	string "Include file for out of tree DDR RAM parameters (600MHz)."
+	default "mach/is43tr16256al-600mhz-relaxed.h"
+	depends on DDR_RAM_OUT_OF_TREE
+
+config DDR400_RAM_INCLUDE
+	string
+	default "mach/is43tr16256al-400mhz-relaxed.h" if DDR_RAM_IS43TR16256AL
+	default DDR_RAM_OUT_OF_TREE_INCLUDE_400 if DDR_RAM_OUT_OF_TREE
+
+config DDR600_RAM_INCLUDE
+	string
+	default "mach/is43tr16256al-600mhz-relaxed.h" if DDR_RAM_IS43TR16256AL
+	default DDR_RAM_OUT_OF_TREE_INCLUDE_600 if DDR_RAM_OUT_OF_TREE
+
 config ENABLE_DDR_ECC
 	bool "Enable ecc for DDR-RAM"
 	default n
 	help
 		Enables ecc for DDR-RAM.
 		NOTE: This feature will slow down the boot process due to the memory initialization time.
-
-endmenu
