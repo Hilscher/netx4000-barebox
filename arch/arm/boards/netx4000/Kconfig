@@ -18,8 +18,8 @@
 choice
 	prompt "DDR RAM Type"
 
-config DDR_RAM_IS43TR16256AL
-	bool "4Gbit (IS43TR16256AL)"
+config DDR_RAM_AS4C512M16D3L_12
+	bool "2GiB (AS4C512M16D3L-12)"
 
 config DDR_RAM_OUT_OF_TREE
 	bool "Out of tree DDR RAM parameters."
@@ -30,22 +30,22 @@ endchoice
 
 config DDR_RAM_OUT_OF_TREE_INCLUDE_400
 	string "Include file for out of tree DDR RAM parameters (400MHz)."
-	default "mach/is43tr16256al-400mhz-relaxed.h"
+	default "mach/as4c512m16d3l-12-400mhz.h"
 	depends on DDR_RAM_OUT_OF_TREE
 
 config DDR_RAM_OUT_OF_TREE_INCLUDE_600
 	string "Include file for out of tree DDR RAM parameters (600MHz)."
-	default "mach/is43tr16256al-600mhz-relaxed.h"
+	default "mach/as4c512m16d3l-12-600mhz"
 	depends on DDR_RAM_OUT_OF_TREE
 
 config DDR400_RAM_INCLUDE
 	string
-	default "mach/is43tr16256al-400mhz-relaxed.h" if DDR_RAM_IS43TR16256AL
+	default "mach/as4c512m16d3l-12-400mhz.h" if DDR_RAM_AS4C512M16D3L_12
 	default DDR_RAM_OUT_OF_TREE_INCLUDE_400 if DDR_RAM_OUT_OF_TREE
 
 config DDR600_RAM_INCLUDE
 	string
-	default "mach/is43tr16256al-600mhz-relaxed.h" if DDR_RAM_IS43TR16256AL
+	default "mach/as4c512m16d3l-12-600mhz.h" if DDR_RAM_AS4C512M16D3L_12
 	default DDR_RAM_OUT_OF_TREE_INCLUDE_600 if DDR_RAM_OUT_OF_TREE
 
 config ENABLE_DDR_ECC
