@@ -7,7 +7,6 @@
 #define DDRCTRL_DENALI_CTL(n)   (*(volatile uint32_t*)(Adr_NX4000_DDR_CTRL_CTL_00 + (n * 4)))
 #define PHYCTRL_CTL(n)   (*(volatile uint32_t*)(Adr_NX4000_DDR_PHY_DDR_PHY_FUNCCTRL + (n * 4)))
 
-
 int ddr400_init(void) {
 	volatile uint32_t *RAP_SYSCTRL_NOCPWRCTRL = (volatile uint32_t *)0xf8000040;
 	volatile uint32_t *RAP_SYSCTRL_NOCPWRSTAT = (volatile uint32_t *)0xf8000048;
@@ -184,7 +183,7 @@ int ddr400_init(void) {
 #else
 	DDRCTRL_DENALI_CTL(152) = DENALI_CTL_152_DATA & ~0x1;
 	ecc = 0;
-#endif)
+#endif
 
 	DDRCTRL_DENALI_CTL(153) = DENALI_CTL_153_DATA;
 

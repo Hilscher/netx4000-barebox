@@ -183,7 +183,7 @@ int ddr600_init(void) {
 #else
 	DDRCTRL_DENALI_CTL(152) = DENALI_CTL_152_DATA & ~0x1;
 	ecc = 0;
-#endif)
+#endif
 
 	DDRCTRL_DENALI_CTL(153) = DENALI_CTL_153_DATA;
 
