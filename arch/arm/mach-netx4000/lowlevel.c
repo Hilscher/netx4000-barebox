@@ -24,15 +24,17 @@
 #include <init.h>
 #include <asm/barebox-arm.h>
 #include <asm/barebox-arm-head.h>
-#include <mach/netx4000_regs.h>
-#include <mach/netx4000_ddr.h>
+#include <asm/memory.h>
 
 #include <mach/hardware.h>
+#include <mach/netx4000_ddr.h>
+#include <mach/regdef_netx4000.h>
 
 extern int ddr400_init(void);
 extern int ddr600_init(void);
 
-#include <mach/regdef_netx4000.h>
+static uint32_t sdram_size = -1;
+
 static uint32_t __bare_init get_sdram_size(void) {
 	uint32_t tmp;
 	uint32_t max_row, max_col;
@@ -60,11 +62,11 @@ static uint32_t __bare_init get_sdram_size(void) {
 	return size;
 }
 
-void ddr_ecc_init(void)
+static void ddr_ecc_init(void)
 {
-	uint32_t sdram_size = get_sdram_size();
+	uint32_t ram_size = sdram_size & ~0x1;
 	uint32_t ram_addr = NETX4000_DDR_ADDR_SPACE_START;
-	uint32_t chunk_size = sdram_size / 8;
+	uint32_t chunk_size = ram_size / 8;
 	uint64_t fill_char[2] = {0,0};
 	int ch;
 	NX4000_RAP_DMAC_CH_AREA_T*  dmach;
@@ -108,6 +110,23 @@ void ddr_ecc_init(void)
 	}
 }
 
+static int netx4000_mem_init(void)
+{
+	uint32_t ram_size = sdram_size & ~0x1;
+	struct memory_bank *bank;
+
+	if (!barebox_add_memory_bank("ram0", NETX4000_DDR_ADDR_SPACE_START, ram_size))
+		pr_info("Info: %s sdram_size is used.\n", (sdram_size & 0x1) ? "Limited calculated" : "Calculated");
+	else
+		pr_warn("Warning: DT defined sdram_size is used!\n");
+
+	for_each_memory_bank(bank)
+		pr_info("sdram_size: 0x%lx-0x%lx (%luMiB)\n", bank->start, bank->start + bank->size - 1, bank->size/1024/1024);
+
+	return 0;
+}
+mem_initcall(netx4000_mem_init);
+
 #define AddressFilteringStartRegister  0xFAF10C00
 #define AddressFilteringEndRegister    0xFAF10C04
 static void fix_l2c_address_filtering_issue(void)
@@ -137,6 +156,15 @@ void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
 		ecc = ddr600_init();
 	else
 		while (1); /* FIXME */
+
+	sdram_size = get_sdram_size();
+	if (sdram_size > 0x40000000) {
+		memset((void*)0x80000000-32,0x55,32);
+		memset((void*)0xc0000000-32,0xaa,32);
+		/* Limit sdram_size if the upper GiB is inaccessible ('netX4000 RLXD' and 'netX4000 FULL v1'). */
+		if (*(volatile uint32_t*)0x7ffffffc != 0x55555555)
+			sdram_size = 0x40000001;
+	}
 
 	/* enable SIMD and floating-point support */
 	__asm__ __volatile__("mrc %p15, 0,r0, c1, c0, 2"); /* Read Non-secure Access Control Register data  */
