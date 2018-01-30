@@ -108,6 +108,15 @@ void ddr_ecc_init(void)
 	}
 }
 
+#define AddressFilteringStartRegister  0xFAF10C00
+#define AddressFilteringEndRegister    0xFAF10C04
+static void fix_l2c_address_filtering_issue(void)
+{
+	*(uint32_t*)AddressFilteringStartRegister = 0x0;
+	*(uint32_t*)AddressFilteringEndRegister = 0xc0000000;
+	*(uint32_t*)AddressFilteringStartRegister = 0x40000001;
+}
+
 void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
 {
 	uint32_t cpu_rate;
@@ -116,6 +125,8 @@ void __naked __bare_init barebox_arm_reset_vector(uint32_t *data)
 	arm_cpu_lowlevel_init();
 
 	arm_setup_stack(NETX4000_AXI_RAM_SPACE_START + SZ_512K - 8);
+
+	fix_l2c_address_filtering_issue();
 
 	/* Initialize DDR controller */
 
