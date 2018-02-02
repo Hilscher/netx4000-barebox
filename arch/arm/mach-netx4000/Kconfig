@@ -20,7 +20,7 @@ menu "netX4000 Options"
 
 config ARCH_TEXT_BASE
 	hex
-	default 0x05001000
+	default 0x05000000
 
 choice
 	prompt "Select netX4000 board type"
