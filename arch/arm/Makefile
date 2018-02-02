@@ -179,6 +179,12 @@ endif
 
 barebox.netx4000: barebox
 	cp $< $<.elf
+
+	# Check file size
+	$(OBJCOPY) -O binary $<.elf $<.bin
+	$(call cmd,check_file_size,$<.bin,$(CONFIG_BAREBOX_MAX_IMAGE_SIZE))
+	rm $<.bin
+
 	$(Q)python scripts/netx4000/hboot_image_compiler.py 		\
 		-pscripts/netx4000/hboot_netx4000_patch_table.xml	\
 		-Abarebox_elf=$<.elf					\
