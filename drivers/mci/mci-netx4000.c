@@ -18,6 +18,8 @@
 *
 */
 
+// #define DEBUG 1
+
 #define DRIVER_DESC  "SD/MMC driver for Hilscher netx4000 based platforms"
 #define DRIVER_NAME "mci-netx4000"
 
@@ -55,6 +57,7 @@ static int s_fNextAppCmd = 0;
 static int s_fAutomaticBlockCount = 1;
 
 struct sdmmc_host {
+	struct device_d				*dev;
 	struct mci_host				mci;
 	struct netx4000_sdio_reg __iomem	*regs;
 	struct clk				*clk;
@@ -62,6 +65,14 @@ struct sdmmc_host {
 	unsigned short 				int_info2;
 };
 #define to_sdmmc_host(mci) container_of(mci, struct sdmmc_host, mci)
+
+static int netx4000_wait_for_sclkdiven(struct sdmmc_host* host)
+{
+	while (!(readl(&host->regs->sd_info2) & MSK_NX4000_SDIO_SD_INFO2_SCLKDIVEN)) {
+		/* FIXME: timeout handling */
+	}
+	return 0;
+}
 
 static u32 wait_for_irq_or_error(struct sdmmc_host *host, u32 info1_mask, u32 info2_mask, u32 error_mask, u32 time, u32 *error)
 {
@@ -97,6 +108,7 @@ static u32 wait_for_irq_or_error(struct sdmmc_host *host, u32 info1_mask, u32 in
 		}
 	//} while ((ret<0) && (get_time_ns()<timeout));
 	} while ((ret==0) && (--timeout>0));
+
 	return ret;
 }
 
@@ -104,9 +116,9 @@ static int wait_for_response(struct sdmmc_host *host) {
 	int ret = 0;
 	u32 error = 0;
 	if (0 == wait_for_irq_or_error( host, MSK_NX4000_SDIO_SD_INFO1_INFO0, 0, SD_INFO2_MASK_ALL_ERR, SD_TIMEOUT_RESP, &error)) {
-		ret = -ETIME;
-		if (error)
-			ret = -EIO;
+		ret = -EIO;
+		if (error & MSK_NX4000_SDIO_SD_INFO2_ERR6)
+			ret = -ETIMEDOUT;
 	}
 	return ret;
 }
@@ -115,9 +127,9 @@ static int wait_for_buffer_ready(struct sdmmc_host *host) {
 	int ret = 0;
 	u32 error = 0;
 	if (0 == wait_for_irq_or_error( host, 0, MSK_NX4000_SDIO_SD_INFO2_BRE | MSK_NX4000_SDIO_SD_INFO2_BWE, SD_INFO2_MASK_ALL_ERR, SD_TIMEOUT, &error)) {
-		ret = -ETIME;
-		if (error)
-			ret = -EIO;
+		ret = -EIO;
+		if (error & MSK_NX4000_SDIO_SD_INFO2_ERR6)
+			ret = -ETIMEDOUT;
 	}
 	return ret;
 }
@@ -127,9 +139,9 @@ static int wait_for_access_end(struct sdmmc_host *host)
 	int ret = 0;
 	u32 error = 0;
 	if (0 == wait_for_irq_or_error( host, MSK_NX4000_SDIO_SD_INFO1_INFO2, 0, SD_INFO2_MASK_ALL_ERR, SD_TIMEOUT, &error)) {
-		ret = -ETIME;
-		if (error)
-			ret = -EIO;
+		ret = -EIO;
+		if (error & MSK_NX4000_SDIO_SD_INFO2_ERR6)
+			ret = -ETIMEDOUT;
 	}
 	return ret;
 }
@@ -253,23 +265,20 @@ static int get_resp(struct sdmmc_host *host, struct mci_cmd *cmd)
 			break;
 		default:
 			/* unknown type */
+			dev_err(host->dev, "Unknown response type (%i)\n", cmd->resp_type);
 			break;
 	}
 	return 0;
 }
 
-static void wait_until_idle(struct netx4000_sdio_reg volatile *regs)
-{
-	while(readl(&regs->sd_info2) & MSK_NX4000_SDIO_SD_INFO2_CBSY){}
-}
-
 static int handle_stop_cmd( struct sdmmc_host *host)
 {
 	struct netx4000_sdio_reg __iomem *regs = host->regs;
+
 	/* signal transfer stop */
 	writel( 1, &regs->sd_stop);
 	wait_for_response(host);
-	wait_until_idle(regs);
+	netx4000_wait_for_sclkdiven(host);
 	wait_for_access_end(host);
 	return 0;
 }
@@ -301,6 +310,32 @@ static void setup_cmd(struct sdmmc_host *host, struct mci_cmd *cmd, struct mci_d
 		default:
 		break;
 	}
+
+	/* We have to configure a extended mode as some commands cannot be used in normal mode.
+	 * To make it easier we do it for all commands.
+	 * A test passed successfuly for a SDHC-Card (v2.0) and a MultiMediaCard (v5.0). */
+	switch(cmd->resp_type) {
+		case MMC_RSP_NONE:
+			cmd_tmp |= (3 << SRT_NX4000_SDIO_SD_CMD_MD_RSP); /* Extended mode/No response */
+			break;
+		case MMC_RSP_R1:
+// 		case MMC_RSP_R5:
+// 		case MMC_RSP_R6:
+// 		case MMC_RSP_R7:
+			cmd_tmp |= (4 << SRT_NX4000_SDIO_SD_CMD_MD_RSP); /* Extended mode/SD card R1, R5, R6, R7 response */
+			break;
+		case MMC_RSP_R1b:
+			cmd_tmp |= (5 << SRT_NX4000_SDIO_SD_CMD_MD_RSP); /* Extended mode/SD card R1b response */
+			break;
+		case MMC_RSP_R2:
+			cmd_tmp |= (6 << SRT_NX4000_SDIO_SD_CMD_MD_RSP); /* Extended mode/SD card R2 response */
+			break;
+		case MMC_RSP_R3:
+// 		case MMC_RSP_R4:
+			cmd_tmp |= (7 << SRT_NX4000_SDIO_SD_CMD_MD_RSP); /* Extended mode/SD card R3, R4 response */
+			break;
+	}
+
 	/* build command */
 	if (data) {/* additional data transmitted */
 		cmd_tmp |= 1 << SRT_NX4000_SDIO_SD_CMD_MD3;
@@ -323,6 +358,7 @@ static void setup_cmd(struct sdmmc_host *host, struct mci_cmd *cmd, struct mci_d
 				cmd_tmp |= MSK_NX4000_SDIO_SD_CMD_MD_MLT_BLK;/* stop command required */
 		}
 	}
+
 	writel( cmd->cmdarg, &regs->sd_arg0);
 	/* issue command */
 	writel(cmd_tmp, &regs->sd_cmd);
@@ -343,25 +379,30 @@ static int sdmmc_send_cmd(struct mci_host *mci, struct mci_cmd *cmd,
 			return handle_stop_cmd( host);
 	}
 
-	wait_until_idle(regs);
+	netx4000_wait_for_sclkdiven(host);
 
 	/* Acknowledge any pending "response end" bit. */
 	writel(~MSK_NX4000_SDIO_SD_INFO1_INFO0,&regs->sd_info1);
-	/* clear errors */
-	writel( ~SD_INFO2_MASK_ALL_ERR, &regs->sd_info2);
+	/* clear all flags */
+	writel(0, &regs->sd_info2);
 
 	/* issue command */
 	setup_cmd(host, cmd, data);
 	/* wait resp or error */
 	if (0>(ret = wait_for_response( host))) {
+		s_fNextAppCmd = 0;
 		return ret;
 	} else {
 		/* in case of no error transfer data present */
 		get_resp( host, cmd);
 		if (data) {
-			ret = transfer_data( host, data->src, data->blocks, data->blocksize, data->flags);
+			if (data->flags & MMC_DATA_WRITE)
+				ret = transfer_data( host, data->src, data->blocks, data->blocksize, data->flags);
+			else
+				ret = transfer_data( host, data->dest, data->blocks, data->blocksize, data->flags);
 		}
-        }
+	}
+
 	return ret;
 }
 
@@ -372,11 +413,13 @@ static void sdmmc_set_clock(struct sdmmc_host *host, u32 clock)
 	unsigned long max = clk_get_rate(host->clk);
 
 	/* do not write to clk-ctrl while SCLKDIVEN is not set */
-	while ( !(MSK_NX4000_SDIO_SD_INFO2_SCLKDIVEN & readl(&host->regs->sd_info2)) ){ndelay(1);};
+	netx4000_wait_for_sclkdiven(host);
+
 	/* disable clock */
-	writel( clock_setting, &host->regs->sd_clk_ctrl);
-	/* calculate divider */
-        if (clock>=max) {
+	writel(clock_setting, &host->regs->sd_clk_ctrl);
+
+	/* calculate new clock divider ... */
+	if (clock>=max) {
 		writel( 0xFF, &host->regs->sd_clk_ctrl);
 	} else {
 		div = 2;
@@ -391,11 +434,11 @@ static void sdmmc_set_clock(struct sdmmc_host *host, u32 clock)
 		clock_setting &= ~0xFF;
 		clock_setting |= MSK_NX4000_SDIO_SD_CLK_CTRL_DIV & (div >> 2);
 	}
-	clock_setting |= MSK_NX4000_SDIO_SD_CLK_CTRL_SD_CLK_EN; /* enable clock */
+	/* ... and write it to chip */
+	writel(clock_setting | MSK_NX4000_SDIO_SD_CLK_CTRL_SD_CLK_OFFEN, &host->regs->sd_clk_ctrl);
 
-	/* do not write to clk-ctrl while SCLKDIVEN is not set */
-	while ( !(MSK_NX4000_SDIO_SD_INFO2_SCLKDIVEN & readl(&host->regs->sd_info2)) ){ndelay(1);};
-	/* set new rate */
+	/* enable clock */
+	clock_setting |= MSK_NX4000_SDIO_SD_CLK_CTRL_SD_CLK_EN;
 	writel( clock_setting | MSK_NX4000_SDIO_SD_CLK_CTRL_SD_CLK_OFFEN, &host->regs->sd_clk_ctrl);
 }
 
@@ -404,9 +447,14 @@ static void sdmmc_set_ios(struct mci_host *mci, struct mci_ios *ios)
 	struct sdmmc_host *host = to_sdmmc_host(mci);
 	u32 val;
 
+	dev_dbg(host->dev,"%s: clock=%d, bus_width=%d, timing=%d\n", __func__,
+		ios->clock, ios->bus_width, ios->timing
+	);
+
 	/* set clock */
 	if (ios->clock)
 		sdmmc_set_clock(host, ios->clock);
+
 	/* set bus width */
 	val = readl(&host->regs->sd_option);
 	if (ios->bus_width == MMC_BUS_WIDTH_1)
@@ -474,19 +522,21 @@ static int sdmmc_probe(struct device_d *dev)
 	struct mci_host *mci;
 
 	host = xzalloc(sizeof(*host));
-	mci = &host->mci;
 
-	host->clk = clk_get(dev, NULL);
-	if (IS_ERR(host->clk))
-		return PTR_ERR(host->clk);
+	host->dev = dev;
 
-	clk_enable(host->clk);
 	host->regs = dev_request_mem_region(dev, 0);
 	if (!host->regs) {
 		dev_err(dev, "could not get iomem region\n");
 		return -ENODEV;
 	}
 
+	host->clk = clk_get(dev, NULL);
+	if (IS_ERR(host->clk))
+		return PTR_ERR(host->clk);
+	clk_enable(host->clk);
+
+	mci = &host->mci;
 	mci->hw_dev = dev;
 	mci->f_max = clk_get_rate(host->clk);
 	mci->f_min = clk_get_rate(host->clk)/512;
