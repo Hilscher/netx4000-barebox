@@ -150,11 +150,9 @@ out:
 }
 
 static __maybe_unused struct of_device_id pcs_dt_ids[] = {
-	{
-		.compatible = "pinctrl-single",
-	}, {
-		/* sentinel */
-	}
+	{ .compatible = "pinctrl-single" },
+	{ .compatible = "pinctrl-single-netx4000" },
+	{ /* sentinel */ }
 };
 
 static struct driver_d pcs_driver = {
