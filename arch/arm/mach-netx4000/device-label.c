@@ -166,28 +166,28 @@ static int netx4000_devices_init_fixup(struct device_node *root, void *data)
 		 of_property_write_u8_array(node, "mac-address", (u8 *)&fdl->macaddr[0], sizeof(macAddr));
 	}
 	else
-		pr_err("%s: '/amba/gmac@f8010000' not found in DT!\n", MODULE);
+		pr_debug("%s: '/amba/gmac@f8010000' not found in DT!\n", MODULE);
 
 	node = of_find_node_by_path_from(root, "/amba/gmac@f8014000");
 	if (node) {
 		 of_property_write_u8_array(node, "mac-address", (u8 *)&fdl->macaddr[1], sizeof(macAddr));
 	}
 	else
-		pr_err("%s: '/amba/gmac@f8014000' not found in DT!\n", MODULE);
+		pr_debug("%s: '/amba/gmac@f8014000' not found in DT!\n", MODULE);
 
 	node = of_find_node_by_path_from(root, "/amba/p3qsx@f8040000/port0");
 	if (node) {
 		 of_property_write_u8_array(node, "mac-address", (u8 *)&fdl->macaddr[0], sizeof(macAddr));
 	}
 	else
-		pr_err("%s: '/amba/p3qsx@f8040000/port0' not found in DT!\n", MODULE);
+		pr_debug("%s: '/amba/p3qsx@f8040000/port0' not found in DT!\n", MODULE);
 
 	node = of_find_node_by_path_from(root, "/amba/p3qsx@f8040000/port1");
 	if (node) {
 		 of_property_write_u8_array(node, "mac-address", (u8 *)&fdl->macaddr[1], sizeof(macAddr));
 	}
 	else
-		pr_err("%s: '/amba/p3qsx@f8040000/port1' not found in DT!\n", MODULE);
+		pr_debug("%s: '/amba/p3qsx@f8040000/port1' not found in DT!\n", MODULE);
 
 	return 0;
 }
@@ -196,7 +196,7 @@ static int netx4000_devices_init(void)
 {
 	struct flash_device_label *fdl = NULL;
 	int err;
-	
+
 	fdl = xzalloc(sizeof(*fdl));
 	if (!fdl)
 		return -ENOMEM;
