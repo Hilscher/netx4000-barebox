@@ -185,7 +185,8 @@ barebox.netx4000: barebox
 	$(call cmd,check_file_size,$<.bin,$(CONFIG_BAREBOX_MAX_IMAGE_SIZE))
 	rm $<.bin
 
-	$(Q)python scripts/netx4000/hboot_image_compiler.py 		\
+	$(Q)python scripts/netx4000/hboot_image_compiler 		\
+		-nNETX4000						\
 		-pscripts/netx4000/hboot_netx4000_patch_table.xml	\
 		-Abarebox_elf=$<.elf					\
 		--objcopy $(OBJCOPY) --objdump $(OBJDUMP)		\
