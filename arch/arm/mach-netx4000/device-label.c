@@ -97,7 +97,7 @@ static int netx4000_parse_devicelabel_env(struct flash_device_label *fdl)
 		if ((envMacAddr[0] == '"') || (envMacAddr[0] == '\''))
 			envMacAddr++;
  		snprintf(macAddr, sizeof(macAddr), "%s", envMacAddr);
-		string_to_ethaddr(envMacAddr, (u8 *)&fdl->macaddr[1]);
+		string_to_ethaddr(macAddr, (u8 *)&fdl->macaddr[1]);
 	}
 
 	return 0;
