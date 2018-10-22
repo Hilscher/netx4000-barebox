@@ -26,29 +26,84 @@
 #include <io.h>
 #include <net.h>
 #include <digest.h>
-
-#define DL_FILE "/boot/devicelabel"
+#include <crc.h>
+#include <linux/ctype.h>
 
 #define MODULE "device-label"
 
+#define DL_FILE "/boot/devicelabel"
+#define FDL_RAM_ADDR (void*)0x0505f000
+
+struct fdl_header {
+	u8 abStartToken[12];  // Fixed String to detect the begin of the device production data 'ProductData>'
+	u16 usLabelSize;      // Size of the complete Label incl. this header and the footer
+	u16 usContentSize;
+};
+
+struct fdl_basic_device_data {
+	u8 dummy[32];
+};
+
+struct fdl_mac_addresses_communication_side {
+	u8 dummy[64];
+};
+
+struct fdl_mac_addresses_application_side {
+	u8 macaddr0[6];
+	u8 macaddr0_res[2];
+	u8 macaddr1[6];
+	u8 macaddr1_res[2];
+	u8 macaddr2[6];
+	u8 macaddr2_res[2];
+	u8 macaddr3[6];
+	u8 macaddr3_res[2];
+};
+
+struct fdl_product_identification_information {
+	u8 dummy[112];
+};
+
+struct fdl_oem_identification {
+	u8 dummy[236];
+};
+
+struct fdl_flash_layout {
+	u8 dummy[488];
+};
+
+struct fdl_footer {
+	u32 ulCRC;          // CRC-32 (IEEE 802.3) of Content
+	u8 abEndToken[12];  //Fixed String to detect the end of the device production data: '<ProductData'
+};
+
+struct fdl_content{
+	struct fdl_basic_device_data bdd;
+	struct fdl_mac_addresses_communication_side macAddrCom;
+	struct fdl_mac_addresses_application_side  macAddrApp;
+	struct fdl_product_identification_information pii;
+	struct fdl_oem_identification oi;
+	struct fdl_flash_layout fl;
+};
+
 typedef u8 macAddr[6];
-struct flash_device_label {
+struct device_label {
 	macAddr macaddr[2];
 };
 
-static int __init netx4000_init_devicelabel_env(void)
+/* Parse device-label file and initialize barebox environment. */
+static int __init netx4000_init_env_by_dlf(void)
 {
 	void *buf;
 	int len, ret;
 	char *p1,*val, var[64];
 
-	pr_info("%s: Searching for %s", MODULE, DL_FILE);
+	pr_info("%s: Searching for %s ... ", MODULE, DL_FILE);
 	buf = read_file(DL_FILE, &len);
 	if (!buf) {
-		pr_err(" ... not found\n");
+		pr_err("not found\n");
 		return -ENOENT;
 	}
-	pr_info(" ... found\n");
+	pr_info("found\n");
 
 	p1 = buf;
 	while (p1 < (char*)(buf+len)) {
@@ -61,7 +116,7 @@ static int __init netx4000_init_devicelabel_env(void)
 		if (!p1)
 			break;
 		val = strtok(NULL, "\n");
-		snprintf(var, sizeof(var), "devicelabel_%s", p1);
+		snprintf(var, sizeof(var), "dlf_%s", p1);
 		ret = setenv(var, val);
 		if (ret)
 		  	pr_err("Setting up environment variable %s=%s failed\n", var, val);
@@ -73,31 +128,92 @@ static int __init netx4000_init_devicelabel_env(void)
 	return 0;
 }
 
-static int netx4000_parse_fdl(struct flash_device_label *fdl)
+/* Parse flash-device-label stored in SDRAM and initialize device label. */
+static int netx4000_init_dl_by_fdl(struct device_label *dl)
 {
-	pr_err("%s: Parsing of Flash-Device-Label currently not supported!\n", MODULE);
+	struct fdl_header const *header = FDL_RAM_ADDR;
+	struct fdl_content const *content = (void*)header + sizeof(*header);
+	struct fdl_footer const *footer = (void*)content + header->usContentSize;
+
+	pr_info("%s: Searching for FDL at 0x%p ...", MODULE, header);
+
+	while (1) {
+		u32 crc;
+
+		/* Verify mandatory fdl values --> */
+		if (strncmp(header->abStartToken, "ProductData>", sizeof(header->abStartToken)) != 0) {
+			u8 buf[sizeof(header->abStartToken)], i;
+
+			for(i = 0; i < sizeof(header->abStartToken); i++) {
+				buf[i] = (isprint(header->abStartToken[i])) ? header->abStartToken[i] : '.';
+			}
+			pr_err("\n%s: Start token mismatch ('%.*s' instead of '%s')\n", MODULE, sizeof(header->abStartToken), buf, "ProductData>");
+			break;
+		}
+		if (header->usLabelSize > 4096 ) {
+			pr_err("\n%s: Length exceeds 4KiB range (%d)\n", MODULE, header->usLabelSize);
+			break;
+		}
+		if (header->usContentSize > (4096 - sizeof(*header) - sizeof(*footer))) {
+			pr_err("\n%s: Length exceeds 4KiB-32B range (%d)\n", MODULE, header->usContentSize);
+			break;
+		}
+		if (strncmp(footer->abEndToken, "<ProductData", sizeof(footer->abEndToken)) != 0) {
+			u8 buf[sizeof(header->abStartToken)], i;
+
+			for(i = 0; i < sizeof(header->abStartToken); i++) {
+				buf[i] = (isprint(header->abStartToken[i])) ? header->abStartToken[i] : '.';
+			}
+			pr_err("\n%s: End token mismatch ('%.*s' instead of '%s')\n", MODULE, sizeof(footer->abEndToken), buf, "<ProductData");
+			break;
+		}
+		crc = crc32(0, (void*)content, header->usContentSize);
+		if (footer->ulCRC != crc) {
+			pr_err("\n%s: CRC mismatch (0x%08x instead of 0x%08x)\n", MODULE, footer->ulCRC, crc);
+			break;
+		}
+		/* <-- Verify mandatory fdl values */
+
+		pr_debug("%s: mac addr 0: %02x:%02x:%02x:%02x:%02x:%02x\n", MODULE,
+			content->macAddrApp.macaddr0[0], content->macAddrApp.macaddr0[1], content->macAddrApp.macaddr0[2],
+			content->macAddrApp.macaddr0[3], content->macAddrApp.macaddr0[4], content->macAddrApp.macaddr0[5]
+		);
+
+		pr_debug("%s: mac addr 1: %02x:%02x:%02x:%02x:%02x:%02x\n", MODULE,
+			content->macAddrApp.macaddr1[0], content->macAddrApp.macaddr1[1], content->macAddrApp.macaddr1[2],
+			content->macAddrApp.macaddr1[3], content->macAddrApp.macaddr1[4], content->macAddrApp.macaddr1[5]
+		);
+
+		memcpy(dl->macaddr[0], content->macAddrApp.macaddr0, sizeof(content->macAddrApp.macaddr0));
+		memcpy(dl->macaddr[1], content->macAddrApp.macaddr1, sizeof(content->macAddrApp.macaddr1));
+
+		pr_info(" ... found\n");
+		return 0;
+	}
+
 	return -1;
 }
 
-static int netx4000_parse_devicelabel_env(struct flash_device_label *fdl)
+/* Parse barebox environment and initialize device label. */
+static int netx4000_init_dl_by_env(struct device_label *dl)
 {
 	const u8 *envMacAddr = NULL;
 	u8 macAddr[18];
 
-	envMacAddr = getenv("devicelabel_eth0_ethaddr");
+	envMacAddr = getenv("dlf_eth0_ethaddr");
 	if (envMacAddr) {
 		if ((envMacAddr[0] == '"') || (envMacAddr[0] == '\''))
 			envMacAddr++;
  		snprintf(macAddr, sizeof(macAddr), "%s", envMacAddr);
-		string_to_ethaddr(macAddr, (u8 *)&fdl->macaddr[0]);
+		string_to_ethaddr(macAddr, (u8 *)&dl->macaddr[0]);
 	}
 
-	envMacAddr = getenv("devicelabel_eth1_ethaddr");
+	envMacAddr = getenv("dlf_eth1_ethaddr");
 	if (envMacAddr) {
 		if ((envMacAddr[0] == '"') || (envMacAddr[0] == '\''))
 			envMacAddr++;
  		snprintf(macAddr, sizeof(macAddr), "%s", envMacAddr);
-		string_to_ethaddr(macAddr, (u8 *)&fdl->macaddr[1]);
+		string_to_ethaddr(macAddr, (u8 *)&dl->macaddr[1]);
 	}
 
 	return 0;
@@ -158,33 +274,33 @@ static int netx4000_create_local_mac_address(macAddr *mac)
 
 static int netx4000_devices_init_fixup(struct device_node *root, void *data)
 {
-	struct flash_device_label *fdl = data;
+	struct device_label *dl = data;
 	struct device_node *node;
 
 	node = of_find_node_by_path_from(root, "/amba/gmac@f8010000");
 	if (node) {
-		 of_property_write_u8_array(node, "mac-address", (u8 *)&fdl->macaddr[0], sizeof(macAddr));
+		 of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[0], sizeof(macAddr));
 	}
 	else
 		pr_debug("%s: '/amba/gmac@f8010000' not found in DT!\n", MODULE);
 
 	node = of_find_node_by_path_from(root, "/amba/gmac@f8014000");
 	if (node) {
-		 of_property_write_u8_array(node, "mac-address", (u8 *)&fdl->macaddr[1], sizeof(macAddr));
+		 of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[1], sizeof(macAddr));
 	}
 	else
 		pr_debug("%s: '/amba/gmac@f8014000' not found in DT!\n", MODULE);
 
 	node = of_find_node_by_path_from(root, "/amba/p3qsx@f8040000/port0");
 	if (node) {
-		 of_property_write_u8_array(node, "mac-address", (u8 *)&fdl->macaddr[0], sizeof(macAddr));
+		 of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[0], sizeof(macAddr));
 	}
 	else
 		pr_debug("%s: '/amba/p3qsx@f8040000/port0' not found in DT!\n", MODULE);
 
 	node = of_find_node_by_path_from(root, "/amba/p3qsx@f8040000/port1");
 	if (node) {
-		 of_property_write_u8_array(node, "mac-address", (u8 *)&fdl->macaddr[1], sizeof(macAddr));
+		 of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[1], sizeof(macAddr));
 	}
 	else
 		pr_debug("%s: '/amba/p3qsx@f8040000/port1' not found in DT!\n", MODULE);
@@ -194,47 +310,47 @@ static int netx4000_devices_init_fixup(struct device_node *root, void *data)
 
 static int netx4000_devices_init(void)
 {
-	struct flash_device_label *fdl = NULL;
+	struct device_label *dl = NULL;
 	int err;
 
-	fdl = xzalloc(sizeof(*fdl));
-	if (!fdl)
+	dl = xzalloc(sizeof(*dl));
+	if (!dl)
 		return -ENOMEM;
 
-	/* Initialize the environment by device-label file. */
-	err = netx4000_init_devicelabel_env();
+	/* Parse device-label file and initialize barebox environment. */
+	err = netx4000_init_env_by_dlf();
 	if (err) {
 		pr_debug("%s: =====================================\n", MODULE);
 		pr_debug("%s: Invalid or missing Device-Label file!\n", MODULE);
 		pr_debug("%s: =====================================\n", MODULE);
 	}
 
-	/* Parse Flash-Device-Label stored in SDRAM */
-	err = netx4000_parse_fdl(fdl);
+	/* Parse flash-device-label stored in SDRAM and initialize device label. */
+	err = netx4000_init_dl_by_fdl(dl);
 	if (err) {
 		pr_err("%s: ======================================\n", MODULE);
 		pr_err("%s: Invalid or missing Flash-Device-Label!\n", MODULE);
 		pr_err("%s: ======================================\n", MODULE);
 
-		/* Parse device-label environment */
-		err = netx4000_parse_devicelabel_env(fdl);
+		/* Parse barebox environment and initialize device label. */
+		err = netx4000_init_dl_by_env(dl);
 	}
 
 	/* Check for valid MAC addresses */
-	if (!is_valid_ether_addr(fdl->macaddr[0])) {
+	if (!is_valid_ether_addr(dl->macaddr[0])) {
 		pr_err("%s: Invalid macaddr[0] => Create a local address only for development!\n", MODULE);
-		netx4000_create_local_mac_address(&fdl->macaddr[0]);
+		netx4000_create_local_mac_address(&dl->macaddr[0]);
 	}
-	if (!is_valid_ether_addr(fdl->macaddr[1])) {
+	if (!is_valid_ether_addr(dl->macaddr[1])) {
 		pr_err("%s: Invalid macaddr[1] => Create a local address only for development!\n", MODULE);
-		netx4000_create_local_mac_address(&fdl->macaddr[1]);
+		netx4000_create_local_mac_address(&dl->macaddr[1]);
 	}
 
 	/* Patch barebox device tree */
-	netx4000_devices_init_fixup(NULL, fdl);
+	netx4000_devices_init_fixup(NULL, dl);
 
 	/* Register function to fixup kernel device tree */
-	of_register_fixup(netx4000_devices_init_fixup, fdl);
+	of_register_fixup(netx4000_devices_init_fixup, dl);
 
 	return 0;
 }
