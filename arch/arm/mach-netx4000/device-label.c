@@ -338,12 +338,14 @@ static int netx4000_devices_init(void)
 
 	/* Check for valid MAC addresses */
 	if (!is_valid_ether_addr(dl->macaddr[0])) {
-		pr_err("%s: Invalid macaddr[0] => Create a local address only for development!\n", MODULE);
 		netx4000_create_local_mac_address(&dl->macaddr[0]);
+		pr_err("%s: eth0 %02x:%02x:%02x:%02x:%02x:%02x not for production use\n", MODULE,
+			dl->macaddr[0][0], dl->macaddr[0][1], dl->macaddr[0][2], dl->macaddr[0][3], dl->macaddr[0][4], dl->macaddr[0][5]);
 	}
 	if (!is_valid_ether_addr(dl->macaddr[1])) {
-		pr_err("%s: Invalid macaddr[1] => Create a local address only for development!\n", MODULE);
 		netx4000_create_local_mac_address(&dl->macaddr[1]);
+		pr_err("%s: eth1 %02x:%02x:%02x:%02x:%02x:%02x not for production use\n", MODULE,
+			dl->macaddr[1][0], dl->macaddr[1][1], dl->macaddr[1][2], dl->macaddr[1][3], dl->macaddr[1][4], dl->macaddr[1][5]);
 	}
 
 	/* Patch barebox device tree */
