@@ -62,17 +62,20 @@ static uint32_t __bare_init get_sdram_size(void) {
 	return size;
 }
 
+static uint64_t fill_char[2];
 static void ddr_ecc_init(void)
 {
 	uint32_t ram_size = sdram_size & ~0x1;
 	uint32_t ram_addr = NETX4000_DDR_ADDR_SPACE_START;
 	uint32_t chunk_size = ram_size / 8;
-	uint64_t fill_char[2] = {0,0};
 	int ch;
 	NX4000_RAP_DMAC_CH_AREA_T*  dmach;
 	NX4000_RAP_DMAC_REG_AREA_T* dmareg;
 
 	dmareg = (NX4000_RAP_DMAC_REG_AREA_T*)Addr_NX4000_RAP_DMAC0_REG;
+
+	/* Prepare source buffer for DMA transfer */
+	memset((void*)&fill_char[0], 0, sizeof(fill_char));
 
 	/* Setup 8 DMA channels to clear DDR */
 	for(ch=0;ch<8;ch++) {
