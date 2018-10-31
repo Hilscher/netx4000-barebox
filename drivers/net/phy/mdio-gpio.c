@@ -41,8 +41,8 @@
 
 struct mdio_gpio_info {
 	struct mdiobb_ctrl ctrl;
-	int mdc, mdio, mdo;
-	int mdc_active_low, mdio_active_low, mdo_active_low;
+	int mdc, mdio, mdo, reset;
+	int mdc_active_low, mdio_active_low, mdo_active_low, reset_active_low;
 };
 
 static struct mdio_gpio_info *mdio_gpio_of_get_info(struct device_d *dev)
@@ -76,6 +76,13 @@ static struct mdio_gpio_info *mdio_gpio_of_get_info(struct device_d *dev)
 		dev_dbg(dev, "found MDO information in DT\n");
 		info->mdo = ret;
 		info->mdo_active_low = flags & OF_GPIO_ACTIVE_LOW;
+	}
+
+	ret = of_get_named_gpio_flags(dev->device_node, "reset-gpio", 0, &flags);
+	if (ret > 0) {
+		dev_dbg(dev, "found reset gpio in DT\n");
+		info->reset = ret;
+		info->reset_active_low = flags & OF_GPIO_ACTIVE_LOW;
 	}
 
 	return info;
@@ -194,6 +201,20 @@ static int mdio_gpio_probe(struct device_d *dev)
 	if (ret < 0) {
 		dev_dbg(dev, "failed to set MDC as output\n");
 		goto free_mdo;
+	}
+
+	if (info->reset > 0) {
+		dev_dbg(dev, "Resetting PHY\n");
+		ret = gpio_request(info->reset, "phy_reset");
+		if (ret > 0) {
+			dev_info(dev, "Unable to reset PHY (request failed)\n");
+		} else {
+			dev_dbg(dev, "Resetting PHY\n");
+			gpio_direction_output(info->reset, 0);
+			gpio_set_value(info->reset, 1 ^ info->reset_active_low);
+			mdelay(250);
+			gpio_set_value(info->reset, 0 ^ info->reset_active_low);
+		}
 	}
 
 	bus = alloc_mdio_bitbang(&info->ctrl);
