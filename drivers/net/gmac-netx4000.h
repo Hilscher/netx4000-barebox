@@ -296,8 +296,8 @@ struct rdesc_wb {
 #define MTL_TXQ0_OM_TTC_mask	(0x7 << MTL_TXQ0_OM_TTC_shift)
 #define MTL_TXQ0_OM_TXQEN_shift	2
 #define MTL_TXQ0_OM_TXQEN_mask	(0x3 << MTL_TXQ0_OM_TXQEN_shift)
-#define MTL_TXQ0_OM_TXQEN_dis	(0x00 << MTL_TXQ0_OM_TXQEN_shift)
-#define MTL_TXQ0_OM_TXQEN_en	(0x10 << MTL_TXQ0_OM_TXQEN_shift)
+#define MTL_TXQ0_OM_TXQEN_dis	(0x0 << MTL_TXQ0_OM_TXQEN_shift)
+#define MTL_TXQ0_OM_TXQEN_en	(0x2 << MTL_TXQ0_OM_TXQEN_shift)
 #define MTL_TXQ0_OM_TSF		(1 << 1)
 #define MTL_TXQ0_OM_FTQ		(1 << 0)
 #define MTL_TXQ0_OM_Rsvd_mask	((0x7f << 25) | (0x1ff << 7)) /* reserved */
