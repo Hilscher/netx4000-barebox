@@ -1,52 +1,103 @@
 #!/bin/sh
 
-linux_dev=$1
+func=$1
 
-# image: fitImage, zImage (mandatory)
-image=""
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part1 /boot/fitImage
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part1 /fitImage
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part1 /boot/zImage
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part1 /zImage
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part2 /boot/fitImage
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part2 /fitImage
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part2 /boot/zImage
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part2 /zImage
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part1 /vmlinuz
-[ -z "$image" ] && . /env/boot/_set_boot_env image /mnt/part2 /vmlinuz
-[ -z "$image" ] && exit 1
+if [ "$func" = "search" ]; then
+	mp=$2
+	file=$3
 
-# rootfs: partition, image file (mandatory)
-root=""
-if [ -L /mnt/part1/sbin/init -o -f /mnt/part1/sbin/init ]; then
-	root="rootwait root=${linux_dev}1 rw"
-elif [ -L /mnt/part2/sbin/init -o -f /mnt/part2/sbin/init ]; then
-	root="rootwait root=${linux_dev}2 rw"
-elif [ -L /mnt/part1/rootfs.img -o -f /mnt/part1/rootfs.img ]; then
-	root="rootwait root=${linux_dev}1/rootfs.img rw"
-elif [ -L /mnt/part2/rootfs.img -o -f /mnt/part2/rootfs.img ]; then
-	root="rootwait root=${linux_dev}2/rootfs.img rw"
-else
+	[ -f ${mp}/${file} ] || exit 1
+	readf ${mp}/${file}.sig hash
+	digest -a sha256 -s ${hash} ${mp}/${file} && exit 0 # success
+	echo "Error: Invalid or missing ${mp}/${file}.sig!"
 	exit 1
 fi
 
-# initrd (optional)
-initrd=""
-[ -z "$initrd" ] && . /env/boot/_set_boot_env initrd /mnt/part1 /boot/initramfs
-[ -z "$initrd" ] && . /env/boot/_set_boot_env initrd /mnt/part1 /initramfs
-[ -z "$initrd" ] && . /env/boot/_set_boot_env initrd /mnt/part2 /boot/initramfs
-[ -z "$initrd" ] && . /env/boot/_set_boot_env initrd /mnt/part2 /initramfs
+if [ "$func" = "select" ]; then
+	mp=$2
+	file=$3
 
-# oftree (optional)
-oftree=""
-[ -z "$oftree" ] && . /env/boot/_set_boot_env oftree /mnt/part1 /boot/oftree
-[ -z "$oftree" ] && . /env/boot/_set_boot_env oftree /mnt/part1 /oftree
-[ -z "$oftree" ] && . /env/boot/_set_boot_env oftree /mnt/part2 /boot/oftree
-[ -z "$oftree" ] && . /env/boot/_set_boot_env oftree /mnt/part2 /oftree
+	basename ${mp} ldev
 
-global.bootm.image="$image"
-global.bootm.initrd="$initrd"
-global.bootm.oftree="$oftree"
-global.linux.bootargs.dyn.root="$root"
+	. ${mp}/${file}
 
-exit 0
+	image="${mp}/${fitimage}"
+	root="rootwait bootCfg=/dev/${ldev}/${file}"
+
+	[ -z "${image}" ] && exit 1
+	[ -z "${root}" ] && exit 1
+
+	global.bootm.image="${image}"
+	global.linux.bootargs.dyn.root="${root}"
+
+	echo "Selected boot config: ${mp}/${file}"
+
+	exit 0 # success
+fi
+
+# Support booting without boot.cfg files
+if [ "$func" = "legacy" ]; then
+	part1=$2"1"
+	part2=$2"2"
+	select=$3
+
+	[ -e ${part1} ] || exit 1
+	[ -e ${part2} ] || exit 1
+
+	basename ${part1} ldev1
+	basename ${part2} ldev2
+
+	# image: kernel or fitimage
+	image=""
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part1} /boot/fitImage
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part1} /fitImage
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part1} /boot/zImage
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part1} /zImage
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part2} /boot/fitImage
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part2} /fitImage
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part2} /boot/zImage
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part2} /zImage
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part1} /vmlinuz
+	[ -z "$image" ] && . /env/boot/_set_boot_env image ${part2} /vmlinuz
+	[ -z "$image" ] && exit 1
+
+	# rootfs: partition, image file (mandatory)
+	root=""
+	if [ -L ${part1}/sbin/init -o -f ${part1}/sbin/init ]; then
+		root="rootwait root=/dev/${ldev1} rw"
+	elif [ -L ${part2}/sbin/init -o -f ${part2}/sbin/init ]; then
+		root="rootwait root=/dev/${ldev2} rw"
+	elif [ -L ${part1}/rootfs.img -o -f ${part1}/rootfs.img ]; then
+		root="rootwait root=/dev/${ldev1}/rootfs.img rw"
+	elif [ -L ${part2}/rootfs.img -o -f ${part2}/rootfs.img ]; then
+		root="rootwait root=/dev/${ldev2}/rootfs.img rw"
+	else
+		exit 1
+	fi
+
+	[ ${select} -eq 0 ] && exit 0 # success
+
+	# initrd (optional)
+	initrd=""
+	[ -z "$initrd" ] && . /env/boot/_set_boot_env initrd ${part1} /boot/initramfs
+	[ -z "$initrd" ] && . /env/boot/_set_boot_env initrd ${part1} /initramfs
+	[ -z "$initrd" ] && . /env/boot/_set_boot_env initrd ${part2} /boot/initramfs
+	[ -z "$initrd" ] && . /env/boot/_set_boot_env initrd ${part2} /initramfs
+
+	# oftree (optional)
+	oftree=""
+	[ -z "$oftree" ] && . /env/boot/_set_boot_env oftree ${part1} /boot/oftree
+	[ -z "$oftree" ] && . /env/boot/_set_boot_env oftree ${part1} /oftree
+	[ -z "$oftree" ] && . /env/boot/_set_boot_env oftree ${part2} /boot/oftree
+	[ -z "$oftree" ] && . /env/boot/_set_boot_env oftree ${part2} /oftree
+
+	global.bootm.image="$image"
+	global.linux.bootargs.dyn.root="$root"
+	global.bootm.initrd="$initrd"
+	global.bootm.oftree="$oftree"
+
+	exit 0 # success
+fi
+
+# Return error code in case of unsupported functions!
+exit 1

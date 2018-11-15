@@ -2,22 +2,10 @@
 
 export PATH=/env/bin
 
-global hostname
-global autoboot_timeout
-global boot.default
-global allow_color
+global hostname="netx4000"
 global linux.bootargs.base
 global linux.bootargs.console
 global linux.bootargs.dyn.root
-global editcmd
-
-[ -z "${global.hostname}" ] && global.hostname=netx4000
-[ -z "${global.autoboot_timeout}" ] && global.autoboot_timeout=3
-magicvar -a global.autoboot_timeout "timeout in seconds before automatic booting"
-[ -z "${global.boot.default}" ] && global.boot.default="usb mmc nand"
-[ -z "${global.allow_color}" ] && global.allow_color=true
-magicvar -a global.allow_color "Allow color on the console (boolean)"
-[ -z "${global.editcmd}" ] && global.editcmd=sedit
 
 if [ -z "${global.linux.bootargs.console}" ]; then
   echo "No console set on boot, defaulting to HVC0"
@@ -27,33 +15,8 @@ fi
 # Append earlyprintk
 global.linux.bootargs.console="${global.linux.bootargs.console} earlyprintk"
 
-[ -e /env/config-board ] && /env/config-board
-/env/config
-
-# allow to stop the boot before execute the /env/init/*
-# but without waiting
-timeout -s -a -v key 0
-autoboot="$?"
-
-if [ "${key}" = "q" ]; then
-	exit
-fi
-
 for i in /env/init/*; do
 	. $i
 done
 
-echo -e -n "\nHit any key to stop autoboot: "
-
-if [ "$autoboot" = 0 ]; then
-	timeout -a $global.autoboot_timeout -v key
-	autoboot="$?"
-fi
-
-if [ "${key}" = "q" ]; then
-	exit
-fi
-
-if [ "$autoboot" = 0 ]; then
-	boot
-fi
+/env/boot/bootmenu

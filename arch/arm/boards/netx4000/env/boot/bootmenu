@@ -1,0 +1,88 @@
+#!/bin/sh
+
+dn=0 # disk number
+
+# MMC
+dpn=0 # disk partition number
+mpn=1 # mount partition number
+if [ -e /dev/disk${dn} ]; then
+	while [ -e /dev/disk${dn}.${dpn} ]; do
+		mkdir -p /mnt/mmcblk0p${mpn}
+		mount /dev/disk${dn}.${dpn} /mnt/mmcblk0p${mpn}
+		let "dpn++"
+		let "mpn++"
+	done
+	let "dn++"
+fi
+
+# USB
+usb # Turn on USB
+dpn=0 # disk partition number
+mpn=1 # mount partition number
+if [ -e /dev/disk${dn} ]; then
+	while [ -e /dev/disk${dn}.${dpn} ]; do
+		mkdir -p /mnt/sda${mpn}
+		mount /dev/disk${dn}.${dpn} /mnt/sda${mpn}
+		let "dpn++"
+		let "mpn++"
+	done
+	let "dn++"
+fi
+
+# Note:
+# As barebox sorts files and directories by indoes,
+# we need a reverse order of device scanning and list handling.
+
+boot=""; aboot=""; rboot=""; legacy=""
+
+# Retrieve valid boot configuration from MM-/SD-Card
+for mp in /mnt/mmcblk0p*; do
+	. /env/boot/set_boot_env search ${mp} boot.cfg && boot="$mp $boot"
+	. /env/boot/set_boot_env search ${mp} aboot.cfg && aboot="$mp $aboot"
+	. /env/boot/set_boot_env search ${mp} rboot.cfg && rboot="$mp $rboot"
+done
+. /env/boot/set_boot_env legacy /mnt/mmcblk0p 0 && legacy="/mnt/mmcblk0p $legacy"
+
+# Retrieve valid boot configurations from usb
+for mp in /mnt/sda*; do
+	. /env/boot/set_boot_env search ${mp} boot.cfg && boot="$mp $boot"
+	. /env/boot/set_boot_env search ${mp} aboot.cfg && aboot="$mp $aboot"
+	. /env/boot/set_boot_env search ${mp} rboot.cfg && rboot="$mp $rboot"
+done
+. /env/boot/set_boot_env legacy /mnt/sda 0 && legacy="$legacy /mnt/sda"
+
+# Add menu
+menu -a -m boot -d "Boot Menu"
+for mp in ${boot}; do
+	# Add menu entry
+	. ${mp}/boot.cfg
+	[ -z "${description}" ] && description="unknown"
+	menu -e -a -m boot -c "/env/boot/set_boot_env select ${mp} boot.cfg && bootm" -d "${mp}/boot.cfg - ${description}"
+done
+for mp in ${aboot}; do
+	# Add menu entry
+	. ${mp}/aboot.cfg
+	[ -z "${description}" ] && description="unknown"
+	menu -e -a -m boot -c "/env/boot/set_boot_env select ${mp} aboot.cfg && bootm" -d "${mp}/aboot.cfg - ${description} (ALTERNATIVE)"
+done
+for mp in ${rboot}; do
+	# Add menu entry
+	. ${mp}/rboot.cfg
+	[ -z "${description}" ] && description="unknown"
+	menu -e -a -m boot -c "/env/boot/set_boot_env select ${mp} rboot.cfg && bootm" -d "${mp}/rboot.cfg - ${description} (RECOVERY)"
+done
+for mp in ${legacy}; do
+	# Add menu entry
+	menu -e -a -m boot -c "/env/boot/set_boot_env legacy ${mp} 1 && bootm" -d "${mp} (LEGACY)"
+done
+# Add menu entry
+menu -e -a -m boot -c "exit 0" -d "Exit to shell"
+# Select first entry as default
+menu -m boot -S -n 1
+# Show menu with auto select delay (3s)
+menu -s -m boot -A 3
+
+# Remove/cleanup menu
+menu -r -m boot
+
+exit 0

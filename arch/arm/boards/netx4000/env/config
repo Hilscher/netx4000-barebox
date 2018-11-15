@@ -1,7 +1,0 @@
-#!/bin/sh
-
-# change network settings in /env/network/eth0
-# change mtd partition settings and automountpoints in /env/init/*
-
-# The settings that used to be here are in nv variables now.
-# See 'help nv', 'magicvar'
