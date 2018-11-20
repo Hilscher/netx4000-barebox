@@ -28,6 +28,9 @@
 #include <gpio.h>
 #include <init.h>
 
+extern int gpiochip_generic_request(struct gpio_chip *chip, unsigned offset);
+extern void gpiochip_generic_free(struct gpio_chip *chip, unsigned offset);
+
 #define OFS_GPIO_IN		0x00
 #define OFS_GPIO_IN_MASK	0x04
 #define OFS_GPIO_OUT		0x08
@@ -145,6 +148,11 @@ static int netx4000_gpio_probe(struct device_d *dev)
 	nx4kchip->chip.dev = dev;
 	nx4kchip->chip.base = dev->id * 32;
 	nx4kchip->chip.ngpio = 32;
+
+	if (of_property_read_bool(dev->device_node, "gpio-ranges")) {
+		nx4kchip->chip.ops->request = gpiochip_generic_request;
+		nx4kchip->chip.ops->free = gpiochip_generic_free;
+	}
 
 	ret = gpiochip_add(&nx4kchip->chip);
 

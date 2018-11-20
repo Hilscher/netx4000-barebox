@@ -7,6 +7,7 @@ struct pinctrl_ops {
 	int (*set_state)(struct pinctrl_device *, struct device_node *);
 	int (*set_direction)(struct pinctrl_device *, unsigned int, bool);
 	int (*get_direction)(struct pinctrl_device *, unsigned int);
+	int (*request_gpio)(struct pinctrl_device *, unsigned int);
 };
 
 struct pinctrl_device {

@@ -22,6 +22,8 @@
 #include <errno.h>
 #include <of.h>
 
+#include <gpio.h>
+
 static LIST_HEAD(pinctrl_list);
 
 static struct pinctrl_device *pin_to_pinctrl(unsigned int pin)
@@ -181,6 +183,39 @@ int pinctrl_select_state(struct device_d *dev, const char *name)
 int pinctrl_select_state_default(struct device_d *dev)
 {
 	return pinctrl_select_state(dev, "default");
+}
+
+int pinctrl_request_gpio(unsigned pin)
+{
+	struct pinctrl_device *pinctrl = pin_to_pinctrl(pin);
+
+	return (pinctrl) ? pinctrl->ops->request_gpio(pinctrl, pin) : -1;
+}
+
+#define GPIO_BASE  1
+#define PINCTRL_BASE  2
+#define COUNT  3
+int gpiochip_generic_request(struct gpio_chip *chip, unsigned offset)
+{
+	int size, pin = -1;
+	const __be32 *gpio_ranges;
+
+	gpio_ranges = of_get_property(chip->dev->device_node, "gpio-ranges", &size);
+	while (gpio_ranges) {
+		if ((offset >= (be32_to_cpu(gpio_ranges[GPIO_BASE]))) &&
+			(offset < (be32_to_cpu(gpio_ranges[GPIO_BASE]) + be32_to_cpu(gpio_ranges[COUNT])))) {
+			pin = be32_to_cpu(gpio_ranges[PINCTRL_BASE]) + offset;
+			break;
+		}
+	}
+
+	return (pin >= 0) ? pinctrl_request_gpio(pin) : -1;
+}
+
+void gpiochip_generic_free(struct gpio_chip *chip, unsigned offset)
+{
+	/* Currently not supported */
+	return;
 }
 
 int pinctrl_register(struct pinctrl_device *pdev)
