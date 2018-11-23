@@ -7,6 +7,8 @@
 #define DDRCTRL_DENALI_CTL(n)   (*(volatile uint32_t*)(Adr_NX4000_DDR_CTRL_CTL_00 + (n * 4)))
 #define PHYCTRL_CTL(n)   (*(volatile uint32_t*)(Adr_NX4000_DDR_PHY_DDR_PHY_FUNCCTRL + (n * 4)))
 
+extern char sdram_type[32]; /* defined in lowlevel.c */
+
 int ddr400_init(void) {
 	volatile uint32_t *RAP_SYSCTRL_NOCPWRCTRL = (volatile uint32_t *)0xf8000040;
 	volatile uint32_t *RAP_SYSCTRL_NOCPWRSTAT = (volatile uint32_t *)0xf8000048;
@@ -23,6 +25,10 @@ int ddr400_init(void) {
 	if(0 != (DDRCTRL_DENALI_CTL(0) & 0x1)) {
 		return (DDRCTRL_DENALI_CTL(152) & 1) ? 1 : 0;
 	}
+
+	strncpy(sdram_type, strrchr(CONFIG_DDR400_RAM_INCLUDE, '/') + 1, sizeof(sdram_type));
+	if (strrchr(sdram_type, '.'))
+		*(strrchr(sdram_type, '.')) = '\0';
 
 	DDRCTRL_DENALI_CTL(0) = DENALI_CTL_00_DATA;
 	DDRCTRL_DENALI_CTL(1) = DENALI_CTL_01_DATA;

@@ -34,6 +34,7 @@ extern int ddr400_init(void);
 extern int ddr600_init(void);
 
 static uint32_t sdram_size = -1;
+char sdram_type[32] = "unknown - RAM is preconfigured";
 
 static uint32_t __bare_init get_sdram_size(void) {
 	uint32_t tmp;
@@ -125,6 +126,8 @@ static int netx4000_mem_init(void)
 
 	for_each_memory_bank(bank)
 		pr_info("sdram_size: 0x%lx-0x%lx (%luMiB)\n", bank->start, bank->start + bank->size - 1, bank->size/1024/1024);
+
+	pr_info("sdram_type: %s\n", sdram_type);
 
 	return 0;
 }
