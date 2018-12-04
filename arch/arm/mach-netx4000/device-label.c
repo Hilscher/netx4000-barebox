@@ -276,6 +276,20 @@ static int netx4000_devices_init_fixup(struct device_node *root, void *data)
 {
 	struct device_label *dl = data;
 	struct device_node *node;
+	u32 chipid[4];
+
+	chipid[0] = readl(0xf80000b0);
+	chipid[1] = readl(0xf80000b4);
+	chipid[2] = readl(0xf80000b8);
+	chipid[3] = readl(0xf80000bc);
+
+	node = of_find_node_by_path_from(root, "/cpus");
+	if(node) {
+		char* serialnr = basprintf("%08x-%08x-%08x-%08x", chipid[0], chipid[1], chipid[2], chipid[3]);
+		of_property_write_string(node, "serial-nr", serialnr);
+		free(serialnr);
+	} else
+		pr_debug("%s: '/cpus' not found in DT!\n", MODULE);
 
 	node = of_find_node_by_path_from(root, "/amba/gmac@f8010000");
 	if (node) {
