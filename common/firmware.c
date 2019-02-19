@@ -153,10 +153,26 @@ static int firmware_close(struct cdev *cdev)
 	return 0;
 }
 
+int firmware_ioctl(struct cdev *cdev, int cmd, void *buf)
+{
+	struct firmware_mgr *mgr = cdev->priv;
+	int ret;
+
+	if (!mgr->handler->ioctl)
+		return -ENOTSUPP;
+
+	ret = mgr->handler->ioctl(mgr->handler, cmd, buf);
+	if (ret)
+		return ret;
+
+	return 0;
+}
+
 static struct cdev_operations firmware_ops = {
 	.open = firmware_open,
 	.write = firmware_write,
 	.close = firmware_close,
+	.ioctl = firmware_ioctl,
 };
 
 /*
@@ -207,6 +223,18 @@ int firmwaremgr_load_file(struct firmware_mgr *mgr, const char *firmware)
 	ret = copy_file(firmware, name, 0);
 
 	free(name);
+
+	return ret;
+}
+
+int firmwaremgr_ioctl(struct firmware_mgr *mgr, int cmd, void *buf)
+{
+	int ret, fd;
+	char *name = basprintf("/dev/%s", mgr->handler->id);
+
+	fd = open(name, O_RDONLY);
+	ret = ioctl(fd, cmd, buf);
+	close(fd);
 
 	return ret;
 }

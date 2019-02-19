@@ -27,6 +27,7 @@ struct firmware_handler {
 	int (*write)(struct firmware_handler*, const void*, size_t);
 	/* called once to finish programming cycle */
 	int (*close)(struct firmware_handler*);
+	int (*ioctl)(struct firmware_handler*, int cmd, void *buf);
 };
 
 struct firmware_mgr;
@@ -38,6 +39,7 @@ struct firmware_mgr *firmwaremgr_find(const char *);
 void firmwaremgr_list_handlers(void);
 
 int firmwaremgr_load_file(struct firmware_mgr *, const char *path);
+int firmwaremgr_ioctl(struct firmware_mgr *mgr, int cmd, void *buf);
 
 #define get_builtin_firmware(name, start, size) \
 	{							\
