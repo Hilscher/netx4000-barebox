@@ -241,6 +241,8 @@ struct phy_device *get_phy_device(struct mii_bus *bus, int addr)
 	/* If the phy_id is mostly Fs, there is no device there */
 	if ((phy_id & 0x1fffffff) == 0x1fffffff)
 		return ERR_PTR(-ENODEV);
+	if (phy_id == 0)
+		return ERR_PTR(-ENODEV);
 
 	phydev = phy_device_create(bus, addr, phy_id);
 

@@ -43,6 +43,12 @@ config NATIONAL_PHY
 	---help---
 	  Currently supports the DP83865 PHY.
 
+config NETX4000_PHY
+	bool "Driver for netX4000 internal PHYs."
+	select MDIO_XC_NETX4000
+	---help---
+	   Supports the internal PHYs of Hilscher netX4000 SoC.
+
 config SMSC_PHY
 	bool "Drivers for SMSC PHYs"
 	---help---
@@ -88,6 +94,12 @@ config MDIO_BUS_MUX_GPIO
 	  are controlled via GPIO lines.  The multiplexer connects one of
 	  several child MDIO busses to a parent bus.  Child bus
 	  selection is under the control of GPIO lines.
+
+config MDIO_XC_NETX4000
+	bool "Support for netX4000 SoC XC MDIO buses"
+	depends on MDIO_BITBANG
+	---help---
+	  Support for netX4000 SoC XC MDIO buses.
 
 endif
 
