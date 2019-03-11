@@ -453,6 +453,9 @@ endif # $(dot-config)
 
 include $(srctree)/arch/$(ARCH)/Makefile
 
+# Reuired by some barebox/linux shared source code files.
+CFLAGS		+= -D__BAREBOX_CODE
+
 ifdef CONFIG_DEBUG_INFO
 CFLAGS		+= -g
 endif
