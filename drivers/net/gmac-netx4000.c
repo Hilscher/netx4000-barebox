@@ -21,16 +21,14 @@
 #define DRIVER_DESC "GMAC driver for Hilscher netX4000 based platforms"
 #define DRIVER_NAME "gmac-netx4000"
 
+// #define DEBUG_PKT_DUMP 1
+
 #include <init.h>
 #include <net.h>
 #include <of_net.h>
 #include <io.h>
 #include <dma.h>
 #include <linux/clk.h>
-#include "asm/system.h" /* required by dmb() */
-
-// #include <digest.h>
-// #include <environment.h>
 
 #include "gmac-netx4000.h"
 
@@ -56,34 +54,34 @@ struct netx4000_gmac_priv {
  * Help functions
  * -------------------------------------------------------------------------- */
 
-static inline int32_t netx4000_ioset32(uint32_t setmask, void *addr)
+static inline int netx4000_ioset32(uint32_t setmask, void *addr)
 {
 	uint32_t val;
 
 	val = readl(addr);
-	writel(val | setmask, addr);
+	iowrite32(val | setmask, addr);
 
 	return 0;
 }
 
-static inline int32_t netx4000_ioclear32(uint32_t clearmask, void *addr)
+static inline int netx4000_ioclear32(uint32_t clearmask, void *addr)
 {
 	uint32_t val;
 
 	val = readl(addr);
-	writel(val & ~clearmask, addr);
+	iowrite32(val & ~clearmask, addr);
 
 	return 0;
 }
 
-static inline int32_t netx4000_iomod32(uint32_t clearmask, uint32_t setmask, void *addr)
+static inline int netx4000_iomod32(uint32_t clearmask, uint32_t setmask, void *addr)
 {
 	uint32_t val;
 
 	val = readl(addr);
 	val &= ~clearmask;
 	val |= setmask;
-	writel(val, addr);
+	iowrite32(val, addr);
 
 	return 0;
 }
@@ -92,60 +90,60 @@ static inline int32_t netx4000_iomod32(uint32_t clearmask, uint32_t setmask, voi
  * Debug functions
  * -------------------------------------------------------------------------- */
 
-#if defined(DEBUG_PKT_DUMP)
-static int32_t netx4000_gmac_packet_dump(uint8_t *buf, uint32_t nbytes)
+#ifdef DEBUG_PKT_DUMP
+static void netx4000_gmac_packet_dump(uint8_t *buf, uint32_t nbytes)
 {
 	uint32_t n = 0;
 
-	pr_debug("\n/*********************************************/\n");
-	pr_debug("Packet of %d Bytes\n", nbytes);
-	pr_debug("\nDst MAC addr (6 bytes): ");
+	pr_info("\n/*********************************************/\n");
+	pr_info("Packet of %d Bytes\n", nbytes);
+	pr_info("\nDst MAC addr (6 bytes): ");
 	for (n = 0; n < 6; n++)
-		pr_debug("%02x%s", buf[n], (((n == 5) ? "" : ":")));
-	pr_debug("\nSrc MAC addr (6 bytes): ");
+		pr_info("%02x%s", buf[n], (((n == 5) ? "" : ":")));
+	pr_info("\nSrc MAC addr (6 bytes): ");
 	for (n = 6; n <= 11; n++)
-		pr_debug("%02x%s", buf[n], (((n == 11) ? "" : ":")));
-	pr_debug("\nType/Length (2 bytes):  %04x\n", (buf[12] << 8 | buf[13]));
+		pr_info("%02x%s", buf[n], (((n == 11) ? "" : ":")));
+	pr_info("\nType/Length (2 bytes):  %04x\n", (buf[12] << 8 | buf[13]));
 
-	pr_debug("\nPay Load : %d bytes\n", (nbytes - 14));
+	pr_info("\nPay Load : %d bytes\n", (nbytes - 14));
 	for (n = 14; n < nbytes; n++) {
-		pr_debug("%02x%s", buf[n], (((n - 13) % 16) && (n < nbytes - 1)) ? ":" : "");
+		pr_info("%02x%s", buf[n], (((n - 13) % 16) && (n < nbytes - 1)) ? ":" : "");
 		if (((n - 13) % 16) == 0)
-			pr_debug("\n");
+			pr_info("\n");
 	}
-	pr_debug("\n/*********************************************/\n\n");
-
-	return 0;
+	pr_info("\n/*********************************************/\n\n");
 }
+#else
+static void netx4000_gmac_packet_dump(uint8_t *buf, uint32_t nbytes) {};
 #endif
 
 /* --------------------------------------------------------------------------
  * MDIO bus functions
  * -------------------------------------------------------------------------- */
 
+#define MDIO_TIMEOUT  (100*MSECOND)
+
 static int netx4000_gmac_mdio_write(struct mii_bus *bus, int addr, int reg, u16 regval)
 {
 	struct netx4000_gmac_priv *priv = bus->priv;
 	void __iomem *regbase = priv->base;
 	uint32_t val;
-	uint64_t start;
+	int rc;
 
-//	pr_debug("%s: addr: 0x%02x reg: 0x%02x val: 0x%04x\n",__func__, addr, reg, regval);
+	pr_debug("%s: addr: 0x%02x reg: 0x%02x val: 0x%04x\n",__func__, addr, reg, regval);
 
-	start = get_time_ns();
-	while (readl(regbase + MAC_MDIO_ADDR) & MAC_MDIO_ADDR_GB)
-		if (is_timeout(start, 100 * MSECOND))
-			return -EIO;
+	rc = wait_on_timeout(MDIO_TIMEOUT, !(ioread32(regbase + MAC_MDIO_ADDR) & MAC_MDIO_ADDR_GB));
+	if (rc)
+		return rc;
 
 	val = regval << MAC_MDIO_DATA_GD_shift;
-	writel(val, regbase + MAC_MDIO_DATA);
+	iowrite32(val, regbase + MAC_MDIO_DATA);
 	val = (addr << MAC_MDIO_ADDR_PA_shift) | (reg << MAC_MDIO_ADDR_GR_shift) | (0x5 << MAC_MDIO_ADDR_CR_shift) | (0x1 << MAC_MDIO_ADDR_GOC_shift) | MAC_MDIO_ADDR_GB;
-	writel(val, regbase + MAC_MDIO_ADDR);
+	iowrite32(val, regbase + MAC_MDIO_ADDR);
 
-	start = get_time_ns();
-	while (readl(regbase + MAC_MDIO_ADDR) & MAC_MDIO_ADDR_GB)
-		if (is_timeout(start, 100 * MSECOND))
-			return -EIO;
+	rc = wait_on_timeout(MDIO_TIMEOUT, !(ioread32(regbase + MAC_MDIO_ADDR) & MAC_MDIO_ADDR_GB));
+	if (rc)
+		return rc;
 
 	return 0;
 }
@@ -155,109 +153,48 @@ static int netx4000_gmac_mdio_read(struct mii_bus *bus, int addr, int reg)
 	struct netx4000_gmac_priv *priv = bus->priv;
 	void __iomem *regbase = priv->base;
 	uint32_t val, regval;
-	uint64_t start;
+	int rc;
 
-	start = get_time_ns();
-	while (readl(regbase + MAC_MDIO_ADDR) & MAC_MDIO_ADDR_GB)
-		if (is_timeout(start, 100 * MSECOND))
-			return -EIO;
+	rc = wait_on_timeout(MDIO_TIMEOUT, !(ioread32(regbase + MAC_MDIO_ADDR) & MAC_MDIO_ADDR_GB));
+	if (rc)
+		return rc;
 
 	val = (addr << MAC_MDIO_ADDR_PA_shift) | (reg << MAC_MDIO_ADDR_GR_shift) | (0x5 << MAC_MDIO_ADDR_CR_shift) | (0x3 << MAC_MDIO_ADDR_GOC_shift) | MAC_MDIO_ADDR_GB;
-	writel(val, regbase + MAC_MDIO_ADDR);
+	iowrite32(val, regbase + MAC_MDIO_ADDR);
 
-	start = get_time_ns();
-	while (readl(regbase + MAC_MDIO_ADDR) & MAC_MDIO_ADDR_GB)
-		if (is_timeout(start, 100 * MSECOND))
-			return -EIO;
+	rc = wait_on_timeout(MDIO_TIMEOUT, !(ioread32(regbase + MAC_MDIO_ADDR) & MAC_MDIO_ADDR_GB));
+	if (rc)
+		return rc;
 
 	regval = (readl(regbase + MAC_MDIO_DATA) & MAC_MDIO_DATA_GD_mask) >> MAC_MDIO_DATA_GD_shift;
 
-//	pr_debug("%s: addr: 0x%02x reg: 0x%02x val: 0x%04x\n", __func__, addr, reg, regval);
+	pr_debug("%s: addr: 0x%02x reg: 0x%02x val: 0x%04x\n", __func__, addr, reg, regval);
 
 	return regval;
 }
 
 /* --------------------------------------------------------------------------
- * Interrupt function
- * -------------------------------------------------------------------------- */
-
-//static int32_t netx4000_gmac_isr(struct eth_device *edev)
-//{
-//	struct netx4000_gmac_priv *priv = edev->priv;
-//	void  __iomem *regbase = priv->base;
-//	uint32_t val;
-//
-//	while ((val = readl(regbase + MAC_IS)) != 0) {
-//		if (val & MAC_IS_GPIIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (GPIIS)\n");
-//		if (val & (MAC_IS_RXSTSIS | MAC_IS_TXSTSIS)) {
-//			val = readl(regbase + MAC_RXTX_STATUS);
-//			dev_dbg(edev->parent, "Receive or transmit error occured (MAC_RxTx_STATUS: 0x%08x)\n", val);
-//		}
-//		if (val & MAC_IS_TSIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (TSIS)\n");
-//		if (val & MAC_IS_MMCRXIPIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (MMCRXIPIS)\n");
-//		if (val & MAC_IS_MMCTXIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (MMCTXIS)\n");
-//		if (val & MAC_IS_MMCRXIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (MMCRXIS)\n");
-//		if (val & MAC_IS_MMCIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (MMCIS)\n");
-//		if (val & MAC_IS_LPIIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (LPIIS)\n");
-//		if (val & MAC_IS_PMTIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (PMTIS)\n");
-//		if (val & MAC_IS_PHYIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (PHYIS)\n");
-//		if (val & MAC_IS_PCSANCIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (PCSANCIS)\n");
-//		if (val & MAC_IS_PCSLCHGIS)
-//			dev_dbg(edev->parent, "Unsupported interrupt (PCSLCHGIS)\n");
-//		if (val & MAC_IS_RGSMIIIS) {
-//			val = readl(regbase + MAC_PHYIF_CS);
-//			if (val & MAC_PHYIF_CS_LNKSTS) {
-//				uint32_t speed = 0, duplex;
-//
-//				if ((val & MAC_PHYIF_CS_LNKSPEED_mask) == MAC_PHYIF_CS_LNKSPEED_1000)
-//					speed = 1000;
-//				else if ((val & MAC_PHYIF_CS_LNKSPEED_mask) == MAC_PHYIF_CS_LNKSPEED_100)
-//					speed = 100;
-//				else if ((val & MAC_PHYIF_CS_LNKSPEED_mask) == MAC_PHYIF_CS_LNKSPEED_10)
-//					speed = 10;
-//
-//				duplex = (val & MAC_PHYIF_CS_LNKMOD) ? 1 : 0;
-//
-//				dev_dbg(edev->parent, "Link status changed: link up - %dMbps %s\n", speed, (duplex) ? "FD" : "HD");
-//			} else
-//				dev_dbg(edev->parent, "Link status changed: link down\n");
-//		}
-//	}
-//
-//	return 0;
-//}
-
-/* --------------------------------------------------------------------------
  * Send and receive functions
  * -------------------------------------------------------------------------- */
 
-static int32_t netx4000_gmac_send (struct eth_device *edev, void *packet, int length)
+#define TX_DESC_TIMEOUT  (0)
+#define RX_DESC_TIMEOUT  (0) // (2*MSECOND)
+
+static int netx4000_gmac_send (struct eth_device *edev, void *packet, int length)
 {
 	struct netx4000_gmac_priv *priv = edev->priv;
 	void  __iomem *regbase = priv->base;
-	struct dummy_desc *txdesc;
+	volatile struct dummy_desc *txdesc;
 	uint8_t *txbuffer;
-	uint64_t start;
+	int rc;
 
 	txdesc = priv->tx_chain + priv->tx_currdesc;
 	txbuffer = priv->txbuffer + (priv->tx_currdesc * ETH_BUF_SZ);
 
-	start = get_time_ns();
-	while (txdesc->des3 & TDES3_OWN) {
-		if (is_timeout(start, 100 * MSECOND)) {
-			dev_err(edev->parent, "TX timed out - no descriptor available!\n");
-			return -EIO;
-		}
+	rc = wait_on_timeout(TX_DESC_TIMEOUT, !(txdesc->des3 & TDES3_OWN));
+	if (rc) {
+		dev_err(edev->parent, "TX timed out - no descriptor available!\n");
+		return rc;
 	}
 
 	memcpy(txbuffer, packet, length);
@@ -270,44 +207,29 @@ static int32_t netx4000_gmac_send (struct eth_device *edev, void *packet, int le
 	if (++priv->tx_currdesc >= TX_NUM_DESC)
 		priv->tx_currdesc = 0;
 
-	dmb();
+	netx4000_gmac_packet_dump((uint8_t*)txdesc->des0, length); // debug code
 
-#if defined(DEBUG_PKT_DUMP)
-	netx4000_gmac_packet_dump((uint8_t*)txdesc->des0, length); // only for debug
-#endif
-
-	writel(priv->tx_chain + priv->tx_currdesc, regbase + DMA_CH0_TXDESC_TAIL_POINTER);
-
-	start = get_time_ns();
-	while (txdesc->des3 & TDES3_OWN) {
-		if (is_timeout(start, 100 * MSECOND)) {
-			dev_err(edev->parent, "TX timed out\n");
-			return -EIO;
-		}
-	}
+	iowrite32((uint32_t)(priv->tx_chain + priv->tx_currdesc), regbase + DMA_CH0_TXDESC_TAIL_POINTER);
 
 	return 0;
 }
 
-static int32_t netx4000_gmac_recv (struct eth_device *edev)
+static int netx4000_gmac_recv (struct eth_device *edev)
 {
-	int32_t rc = 0;
 	struct netx4000_gmac_priv *priv = edev->priv;
 	void  __iomem *regbase = priv->base;
-	struct dummy_desc *rxdesc;
+	volatile struct dummy_desc *rxdesc;
 	uint8_t *rxbuffer;
 	uint32_t length;
-	uint64_t start;
+	int rc;
 
 	rxdesc = priv->rx_chain + priv->rx_currdesc;
 	rxbuffer = priv->rxbuffer + (priv->rx_currdesc * ETH_BUF_SZ);
 
-	start = get_time_ns();
-	while (rxdesc->des3 & RDES3_OWN) {
-		if (is_timeout(start, 100 * MSECOND)) {
-			dev_dbg(edev->parent, "RX timed out - no descriptor available!\n");
-			return -EIO;
-		}
+	rc = wait_on_timeout(RX_DESC_TIMEOUT, !(rxdesc->des3 & RDES3_OWN));
+	if (rc) {
+		dev_dbg(edev->parent, "RX timed out - no descriptor available!\n");
+		return rc;
 	}
 
 	do {
@@ -333,11 +255,11 @@ static int32_t netx4000_gmac_recv (struct eth_device *edev)
 		/* Process the descriptor */
 		length = (rxdesc->des3 & RDES3_PL_mask) >> RDES3_PL_shift;
 
-#if defined(DEBUG_PKT_DUMP)
-		netx4000_gmac_packet_dump((uint8_t*)rxdesc->des0, length);
-#endif
+		netx4000_gmac_packet_dump((uint8_t*)rxdesc->des0, length); // debug code
 
-		net_receive(edev, rxbuffer, length);
+		/* Increasing performance by coping receive frame to cached buffer. */
+		memcpy(NetRxPackets[0], rxbuffer, length);
+		net_receive(edev, NetRxPackets[0], length);
 	} while (0);
 
 	if (rc)
@@ -345,13 +267,13 @@ static int32_t netx4000_gmac_recv (struct eth_device *edev)
 
 	/* Freeing the desciptor and resume a suspended DMA */
 	rxdesc->des3 = RDES3_OWN | RDES3_BUF1V;
-	writel(priv->rx_chain + RX_NUM_DESC, regbase + DMA_CH0_RXDESC_TAIL_POINTER);
+	iowrite32((uint32_t)(priv->rx_chain + RX_NUM_DESC), regbase + DMA_CH0_RXDESC_TAIL_POINTER);
 
 	/* inc and wrap */
 	if (++priv->rx_currdesc >= RX_NUM_DESC)
 		priv->rx_currdesc = 0;
 
-	return (rc != 0) ? rc : 0;
+	return (rc) ? rc : 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -380,16 +302,16 @@ static void netx4000_gmac_update_linkspeed(struct eth_device *edev)
 	else
 		val &= ~MAC_CFG_FES;
 
-	writel(val, regbase + MAC_CFG);
+	iowrite32(val, regbase + MAC_CFG);
 
 	return;
 }
 
-static int32_t netx4000_gmac_open(struct eth_device *edev)
+static int netx4000_gmac_open(struct eth_device *edev)
 {
 	struct netx4000_gmac_priv *priv = edev->priv;
 	void __iomem *regbase = priv->base;
-	int32_t rc;
+	int rc;
 
 	rc = phy_device_connect(edev, NULL /*&priv->miibus*/, -1 /*priv->phyid*/, netx4000_gmac_update_linkspeed, 0, priv->interface);
 	if (rc)
@@ -403,13 +325,6 @@ static int32_t netx4000_gmac_open(struct eth_device *edev)
 	netx4000_ioset32(MAC_CFG_TE | MAC_CFG_RE, regbase + MAC_CFG);
 
 	return 0;
-}
-
-static void netx4000_gmac_halt (struct eth_device *edev)
-{
-	pr_warn("Entering unsupported function %s()\n", __func__);
-
-	return;
 }
 
 static int netx4000_gmac_get_ethaddr(struct eth_device *edev, u8 *addr)
@@ -428,7 +343,7 @@ static int netx4000_gmac_get_ethaddr(struct eth_device *edev, u8 *addr)
 	addr[4] = (uint8_t)((val >> 8) & 0xff);
 	addr[5] = (uint8_t)((val >> 0) & 0xff);
 
-//	dev_dbg(edev->parent, "%s: %02x:%02x:%02x:%02x:%02x:%02x\n", __func__, addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+	dev_dbg(edev->parent, "%s: %02x:%02x:%02x:%02x:%02x:%02x\n", __func__, addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 
 	return 0;
 }
@@ -441,7 +356,7 @@ static int netx4000_gmac_set_ethaddr(struct eth_device *edev, const unsigned cha
 	netx4000_iomod32(0x0000ffff, (addr[0] << 8) | (addr[1]), regbase + MAC_ADDRESS_0_HIGH);
 	netx4000_iomod32(0xffffffff, (addr[2] << 24) | (addr[3] << 16) | (addr[4] << 8) | (addr[5]), regbase + MAC_ADDRESS_0_LOW);
 
-//	dev_dbg(edev->parent, "%s: %02x:%02x:%02x:%02x:%02x:%02x\n", __func__, addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+	dev_dbg(edev->parent, "%s: %02x:%02x:%02x:%02x:%02x:%02x\n", __func__, addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 
 	return 0;
 }
@@ -450,7 +365,7 @@ static int netx4000_gmac_set_ethaddr(struct eth_device *edev, const unsigned cha
  * Initialization functions for the driver and the chip
  * -------------------------------------------------------------------------- */
 
-static int32_t init_tx_desc(struct netx4000_gmac_priv *priv)
+static int init_tx_desc(struct netx4000_gmac_priv *priv)
 {
 	void __iomem *regbase = priv->base;
 	struct dummy_desc *txdesc = priv->tx_chain;
@@ -458,18 +373,17 @@ static int32_t init_tx_desc(struct netx4000_gmac_priv *priv)
 
 	for (i = 0; i < TX_NUM_DESC; i++)
 		memset(txdesc + i, 0, sizeof(*txdesc));
-	dmb();
 
-	writel(TX_NUM_DESC - 1, regbase + DMA_CH0_TXDESC_RING_LENGTH);
-	writel(priv->tx_chain, regbase + DMA_CH0_TXDESC_LIST_ADDR);
-	writel(priv->tx_chain, regbase + DMA_CH0_TXDESC_TAIL_POINTER);
+	iowrite32(TX_NUM_DESC - 1, regbase + DMA_CH0_TXDESC_RING_LENGTH);
+	iowrite32((uint32_t)(priv->tx_chain), regbase + DMA_CH0_TXDESC_LIST_ADDR);
+	iowrite32((uint32_t)(priv->tx_chain), regbase + DMA_CH0_TXDESC_TAIL_POINTER);
 
 	priv->tx_currdesc = 0;
 
 	return 0;
 }
 
-static int32_t init_rx_desc(struct netx4000_gmac_priv *priv)
+static int init_rx_desc(struct netx4000_gmac_priv *priv)
 {
 	void __iomem *regbase = priv->base;
 	struct dummy_desc *rxdesc = priv->rx_chain;
@@ -480,36 +394,33 @@ static int32_t init_rx_desc(struct netx4000_gmac_priv *priv)
 		(rxdesc + i)->des0 = (uint32_t)(priv->rxbuffer + (i * ETH_BUF_SZ));
 		(rxdesc + i)->des3 = RDES3_OWN | RDES3_BUF1V;
 	}
-	dmb();
 
-	writel(RX_NUM_DESC - 1, regbase + DMA_CH0_RXDESC_RING_LENGTH);
-	writel(priv->rx_chain, regbase + DMA_CH0_RXDESC_LIST_ADDR);
-	writel(priv->rx_chain + RX_NUM_DESC, regbase + DMA_CH0_RXDESC_TAIL_POINTER);
+	iowrite32(RX_NUM_DESC - 1, regbase + DMA_CH0_RXDESC_RING_LENGTH);
+	iowrite32((uint32_t)(priv->rx_chain), regbase + DMA_CH0_RXDESC_LIST_ADDR);
+	iowrite32((uint32_t)(priv->rx_chain + RX_NUM_DESC), regbase + DMA_CH0_RXDESC_TAIL_POINTER);
 
 	priv->rx_currdesc = 0;
 
 	return 0;
 }
 
-static int32_t netx4000_gmac_dma_init(struct netx4000_gmac_priv *priv)
+static int netx4000_gmac_dma_init(struct netx4000_gmac_priv *priv)
 {
 	void __iomem *regbase = priv->base;
-	uint64_t start;
+	int rc;
 
 	/* Provide a software reset. This resets all of the MAC internal registers and logic. */
 	netx4000_ioset32(DMA_MODE_SWR, regbase + DMA_MODE);
-	start = get_time_ns();
-	while (readl(regbase + DMA_MODE) & DMA_MODE_SWR) {
-		if (is_timeout(start, 100 * MSECOND)) {
-			dev_err(priv->edev.parent, "DMA reset failed\n");
-			return -EIO;
-		}
+	rc = wait_on_timeout(MDIO_TIMEOUT, !(ioread32(regbase + DMA_MODE) & DMA_MODE_SWR));
+	if (rc) {
+		dev_err(priv->edev.parent, "DMA reset failed\n");
+		return rc;
 	}
 
 	netx4000_ioset32(DMA_CH0_CONTROL_PBLx8, regbase + DMA_CH0_CONTROL);
 
 	/* Configure bus access */
-	writel(DMA_SYSBUS_MODE_RD_OSR_LMT_mask /*| DMA_SYSBUS_MODE_WR_OSR_LMT_mask*/
+	iowrite32(DMA_SYSBUS_MODE_RD_OSR_LMT_mask /*| DMA_SYSBUS_MODE_WR_OSR_LMT_mask*/
 //			| DMA_SYSBUS_MODE_BLEN128
 //			| DMA_SYSBUS_MODE_BLEN64
 //			| DMA_SYSBUS_MODE_BLEN32
@@ -531,47 +442,41 @@ static int32_t netx4000_gmac_dma_init(struct netx4000_gmac_priv *priv)
 	init_rx_desc(priv);
 
 	/* TX Programmable Burst Length (4) */
-	writel((4 << DMA_CH0_TX_CONTROL_TXPBL_shift), regbase + DMA_CH0_TX_CONTROL);
+	iowrite32((4 << DMA_CH0_TX_CONTROL_TXPBL_shift), regbase + DMA_CH0_TX_CONTROL);
 
 	/* RX Programmable Burst Length (4), Receive Buffer size (ETH_BUF_SZ) */
-	writel((4 << DMA_CH0_RX_CONTROL_RXPBL_shift) | ((ETH_BUF_SZ << DMA_CH0_RX_CONTROL_RBSZ_shift) & DMA_CH0_RX_CONTROL_RBSZ_mask), regbase + DMA_CH0_RX_CONTROL);
-
-	dmb();
+	iowrite32((4 << DMA_CH0_RX_CONTROL_RXPBL_shift) | ((ETH_BUF_SZ << DMA_CH0_RX_CONTROL_RBSZ_shift) & DMA_CH0_RX_CONTROL_RBSZ_mask), regbase + DMA_CH0_RX_CONTROL);
 
 	return 0;
 }
 
-static int32_t netx4000_gmac_mtl_init(struct netx4000_gmac_priv *priv)
+static int netx4000_gmac_mtl_init(struct netx4000_gmac_priv *priv)
 {
 	void __iomem *regbase = priv->base;
 
 	/* Transmit Queue Size (2048), Transmit Store and Forward, Transmit Queue Enable */
-	writel((0x7 << MTL_TXQ0_OM_TQS_shift) | MTL_TXQ0_OM_TSF | MTL_TXQ0_OM_TXQEN_en, regbase + MTL_TXQ0_OM);
+	iowrite32((0x7 << MTL_TXQ0_OM_TQS_shift) | MTL_TXQ0_OM_TSF | MTL_TXQ0_OM_TXQEN_en, regbase + MTL_TXQ0_OM);
 
 	/* Receive Queue Size (2048), Receive Queue Store and Forward */
-	writel((0x7 << MTL_RXQ0_OM_RQS_shift) | MTL_RXQ0_OM_RSF, regbase + MTL_RXQ0_OM);
-
-	dmb();
+	iowrite32((0x7 << MTL_RXQ0_OM_RQS_shift) | MTL_RXQ0_OM_RSF, regbase + MTL_RXQ0_OM);
 
 	return 0;
 }
 
-static int32_t netx4000_gmac_mac_init(struct netx4000_gmac_priv *priv)
+static int netx4000_gmac_mac_init(struct netx4000_gmac_priv *priv)
 {
 	void __iomem *regbase = priv->base;
 
 	netx4000_gmac_set_ethaddr(&priv->edev, priv->edev.ethaddr);
 
 	/* Receive All */
-	writel(MAC_PF_RA, regbase + MAC_PF);
-
-	dmb();
+	iowrite32(MAC_PF_RA, regbase + MAC_PF);
 
 	return 0;
 }
 
 /* called by eth_register() */
-static int32_t netx4000_gmac_chip_init(struct eth_device *edev)
+static int netx4000_gmac_chip_init(struct eth_device *edev)
 {
 	struct netx4000_gmac_priv *priv = edev->priv;
 
@@ -582,11 +487,11 @@ static int32_t netx4000_gmac_chip_init(struct eth_device *edev)
 	return 0;
 }
 
-static int32_t netx4000_gmac_probe(struct device_d *dev)
+static int netx4000_gmac_probe(struct device_d *dev)
 {
-	int32_t rc = 0;
 	struct netx4000_gmac_priv *priv;
 	struct device_node *mdionode;
+	int rc;
 
 	if ((priv = xzalloc(sizeof(*priv))) == NULL)
 		return -ENOMEM;
@@ -628,7 +533,6 @@ static int32_t netx4000_gmac_probe(struct device_d *dev)
 	priv->edev.open = netx4000_gmac_open;
 	priv->edev.send = netx4000_gmac_send;
 	priv->edev.recv = netx4000_gmac_recv;
-	priv->edev.halt = netx4000_gmac_halt;
 	priv->edev.get_ethaddr = netx4000_gmac_get_ethaddr;
 	priv->edev.set_ethaddr = netx4000_gmac_set_ethaddr;
 
@@ -643,10 +547,6 @@ static int32_t netx4000_gmac_probe(struct device_d *dev)
 			memcpy(priv->edev.ethaddr, of_get_mac_address(dev->device_node), sizeof(priv->edev.ethaddr));
 		}
 	}
-
-	dev_info(dev, "mac address = %02x:%02x:%02x:%02x:%02x:%02x\n",
-		priv->edev.ethaddr[0], priv->edev.ethaddr[1], priv->edev.ethaddr[2], priv->edev.ethaddr[3], priv->edev.ethaddr[4], priv->edev.ethaddr[5]
-	);
 
 	if ((rc = eth_register(&priv->edev)) != 0) {
 		dev_err(dev, "register eth%d failed\n", priv->edev.dev.id);
@@ -665,11 +565,8 @@ err_out:
 }
 
 static __maybe_unused struct of_device_id netx4000_gmac_dt_ids[] = {
-	{
-		.compatible = "hilscher,netx4000-gmac",
-	}, {
-		/* sentinel */
-	},
+	{ .compatible = "hilscher,netx4000-gmac", },
+	{ /* sentinel */ },
 };
 
 static struct driver_d netx4000_gmac_driver = {

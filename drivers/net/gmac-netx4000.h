@@ -30,7 +30,7 @@ struct dummy_desc {
 	uint32_t des1;
 	uint32_t des2;
 	uint32_t des3;
-};
+} __attribute__((packed, aligned(4)));
 
 /* Transmit Normal Descriptor (Read Format) */
 
@@ -39,7 +39,7 @@ struct tdesc_rd {
 	void	 *desc1;
 	uint32_t desc2;
 	uint32_t desc3;
-};
+} __attribute__((packed, aligned(4)));
 
 #define TDES2_IC		(1 << 31)
 #define TDES2_TTSE		(1 << 30)
@@ -78,7 +78,7 @@ struct tdesc_wb {
 	uint32_t tsh;
 	uint32_t des2;
 	uint32_t status;
-};
+} __attribute__((packed, aligned(4)));
 
 #define STATUS_OWN		(1 << 31)
 #define STATUS_CTXT		(1 << 30)
@@ -108,7 +108,7 @@ struct rdesc_rd {
 	uint32_t desc1;
 	void	 *desc2;
 	uint32_t desc3;
-};
+} __attribute__((packed, aligned(4)));
 
 #define RDES3_OWN		(1 << 31)
 #define RDES3_INTE		(1 << 30)
@@ -123,7 +123,7 @@ struct rdesc_wb {
 	uint32_t desc1;
 	uint32_t desc2;
 	uint32_t desc3;
-};
+} __attribute__((packed, aligned(4)));
 
 #define RDES3_OWN		(1 << 31)
 #define RDES3_CTXT		(1 << 30)
