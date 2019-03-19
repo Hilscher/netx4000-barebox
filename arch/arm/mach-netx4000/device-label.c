@@ -87,7 +87,7 @@ struct fdl_content{
 
 typedef u8 macAddr[6];
 struct device_label {
-	macAddr macaddr[2];
+	macAddr macaddr[4];
 };
 
 /* Parse device-label file and initialize barebox environment. */
@@ -184,8 +184,20 @@ static int netx4000_init_dl_by_fdl(struct device_label *dl)
 			content->macAddrApp.macaddr1[3], content->macAddrApp.macaddr1[4], content->macAddrApp.macaddr1[5]
 		);
 
-		memcpy(dl->macaddr[0], content->macAddrApp.macaddr0, sizeof(content->macAddrApp.macaddr0));
-		memcpy(dl->macaddr[1], content->macAddrApp.macaddr1, sizeof(content->macAddrApp.macaddr1));
+		pr_debug("%s: mac addr 2: %02x:%02x:%02x:%02x:%02x:%02x\n", MODULE,
+			content->macAddrApp.macaddr2[0], content->macAddrApp.macaddr2[1], content->macAddrApp.macaddr2[2],
+			content->macAddrApp.macaddr2[3], content->macAddrApp.macaddr2[4], content->macAddrApp.macaddr2[5]
+		);
+
+		pr_debug("%s: mac addr 3: %02x:%02x:%02x:%02x:%02x:%02x\n", MODULE,
+			content->macAddrApp.macaddr3[0], content->macAddrApp.macaddr3[1], content->macAddrApp.macaddr3[2],
+			content->macAddrApp.macaddr3[3], content->macAddrApp.macaddr3[4], content->macAddrApp.macaddr3[5]
+		);
+
+		memcpy(dl->macaddr[0], content->macAddrApp.macaddr0, sizeof(dl->macaddr[0]));
+		memcpy(dl->macaddr[1], content->macAddrApp.macaddr1, sizeof(dl->macaddr[1]));
+		memcpy(dl->macaddr[2], content->macAddrApp.macaddr2, sizeof(dl->macaddr[2]));
+		memcpy(dl->macaddr[3], content->macAddrApp.macaddr3, sizeof(dl->macaddr[3]));
 
 		pr_info(" ... found\n");
 		return 0;
@@ -200,20 +212,36 @@ static int netx4000_init_dl_by_env(struct device_label *dl)
 	const u8 *envMacAddr = NULL;
 	u8 macAddr[18];
 
-	envMacAddr = getenv("dlf_eth0_ethaddr");
+	envMacAddr = getenv("dlf_gmac0_ethaddr");
 	if (envMacAddr) {
 		if ((envMacAddr[0] == '"') || (envMacAddr[0] == '\''))
 			envMacAddr++;
- 		snprintf(macAddr, sizeof(macAddr), "%s", envMacAddr);
+		snprintf(macAddr, sizeof(macAddr), "%s", envMacAddr);
 		string_to_ethaddr(macAddr, (u8 *)&dl->macaddr[0]);
 	}
 
-	envMacAddr = getenv("dlf_eth1_ethaddr");
+	envMacAddr = getenv("dlf_gmac1_ethaddr");
 	if (envMacAddr) {
 		if ((envMacAddr[0] == '"') || (envMacAddr[0] == '\''))
 			envMacAddr++;
- 		snprintf(macAddr, sizeof(macAddr), "%s", envMacAddr);
+		snprintf(macAddr, sizeof(macAddr), "%s", envMacAddr);
 		string_to_ethaddr(macAddr, (u8 *)&dl->macaddr[1]);
+	}
+
+	envMacAddr = getenv("dlf_xceth0_ethaddr");
+	if (envMacAddr) {
+		if ((envMacAddr[0] == '"') || (envMacAddr[0] == '\''))
+			envMacAddr++;
+		snprintf(macAddr, sizeof(macAddr), "%s", envMacAddr);
+		string_to_ethaddr(macAddr, (u8 *)&dl->macaddr[2]);
+	}
+
+	envMacAddr = getenv("dlf_xceth1_ethaddr");
+	if (envMacAddr) {
+		if ((envMacAddr[0] == '"') || (envMacAddr[0] == '\''))
+			envMacAddr++;
+		snprintf(macAddr, sizeof(macAddr), "%s", envMacAddr);
+		string_to_ethaddr(macAddr, (u8 *)&dl->macaddr[3]);
 	}
 
 	return 0;
@@ -272,6 +300,12 @@ static int netx4000_create_local_mac_address(macAddr *mac)
 	return 0;
 }
 
+#define show_mac_addr(if_name, mac_addr) { \
+	pr_info("%s: %s %02x:%02x:%02x:%02x:%02x:%02x %s\n", MODULE, if_name, \
+		mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5], \
+		((mac_addr[0] & 0x3) == 0x2) ? "not for production use" : ""); \
+}
+
 static int netx4000_devices_init_fixup(struct device_node *root, void *data)
 {
 	struct device_label *dl = data;
@@ -291,33 +325,50 @@ static int netx4000_devices_init_fixup(struct device_node *root, void *data)
 	} else
 		pr_debug("%s: '/cpus' not found in DT!\n", MODULE);
 
+	/* GMAC */
 	node = of_find_node_by_path_from(root, "/amba/gmac@f8010000");
 	if (node) {
-		 of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[0], sizeof(macAddr));
+		of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[0], sizeof(macAddr));
+		if(!root)
+			show_mac_addr("gmac0", dl->macaddr[0]);
 	}
-	else
-		pr_debug("%s: '/amba/gmac@f8010000' not found in DT!\n", MODULE);
 
 	node = of_find_node_by_path_from(root, "/amba/gmac@f8014000");
 	if (node) {
-		 of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[1], sizeof(macAddr));
+		of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[1], sizeof(macAddr));
+		if(!root)
+			show_mac_addr("gmac1", dl->macaddr[1]);
 	}
-	else
-		pr_debug("%s: '/amba/gmac@f8014000' not found in DT!\n", MODULE);
 
+	/* 3port switch */
 	node = of_find_node_by_path_from(root, "/amba/p3qsx@f8040000/port0");
 	if (node) {
-		 of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[0], sizeof(macAddr));
+		of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[0], sizeof(macAddr));
+		if(!root)
+			show_mac_addr("p3qsx0", dl->macaddr[0]);
 	}
-	else
-		pr_debug("%s: '/amba/p3qsx@f8040000/port0' not found in DT!\n", MODULE);
 
 	node = of_find_node_by_path_from(root, "/amba/p3qsx@f8040000/port1");
 	if (node) {
-		 of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[1], sizeof(macAddr));
+		of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[1], sizeof(macAddr));
+		if(!root)
+			show_mac_addr("p3qsx1", dl->macaddr[1]);
 	}
-	else
-		pr_debug("%s: '/amba/p3qsx@f8040000/port1' not found in DT!\n", MODULE);
+
+	/* xceth */
+	node = of_find_node_by_path_from(root, "/xceth0");
+	if (node) {
+		of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[2], sizeof(macAddr));
+		if(!root)
+			show_mac_addr("xceth0", dl->macaddr[2]);
+	}
+
+	node = of_find_node_by_path_from(root, "/xceth1");
+	if (node) {
+		of_property_write_u8_array(node, "mac-address", (u8 *)&dl->macaddr[3], sizeof(macAddr));
+		if(!root)
+			show_mac_addr("xceth1", dl->macaddr[3]);
+	}
 
 	return 0;
 }
@@ -353,13 +404,15 @@ static int netx4000_devices_init(void)
 	/* Check for valid MAC addresses */
 	if (!is_valid_ether_addr(dl->macaddr[0])) {
 		netx4000_create_local_mac_address(&dl->macaddr[0]);
-		pr_err("%s: eth0 %02x:%02x:%02x:%02x:%02x:%02x not for production use\n", MODULE,
-			dl->macaddr[0][0], dl->macaddr[0][1], dl->macaddr[0][2], dl->macaddr[0][3], dl->macaddr[0][4], dl->macaddr[0][5]);
 	}
 	if (!is_valid_ether_addr(dl->macaddr[1])) {
 		netx4000_create_local_mac_address(&dl->macaddr[1]);
-		pr_err("%s: eth1 %02x:%02x:%02x:%02x:%02x:%02x not for production use\n", MODULE,
-			dl->macaddr[1][0], dl->macaddr[1][1], dl->macaddr[1][2], dl->macaddr[1][3], dl->macaddr[1][4], dl->macaddr[1][5]);
+	}
+	if (!is_valid_ether_addr(dl->macaddr[2])) {
+		netx4000_create_local_mac_address(&dl->macaddr[2]);
+	}
+	if (!is_valid_ether_addr(dl->macaddr[3])) {
+		netx4000_create_local_mac_address(&dl->macaddr[3]);
 	}
 
 	/* Patch barebox device tree */
