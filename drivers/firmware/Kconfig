@@ -14,4 +14,9 @@ config FIRMWARE_ALTERA_SOCFPGA
 	bool "Altera SoCFPGA fpga loader"
 	depends on ARCH_SOCFPGA
 	select FIRMWARE
+
+config FIRMWARE_NETX4000_XC
+	bool "netX4000 XC firmware handler"
+	depends on ARCH_NETX4000
+	select FIRMWARE
 endmenu
