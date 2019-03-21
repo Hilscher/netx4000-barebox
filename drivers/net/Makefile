@@ -34,3 +34,5 @@ obj-$(CONFIG_DRIVER_NET_TSE)		+= altera_tse.o
 obj-$(CONFIG_DRIVER_NET_EFI_SNP)	+= efi-snp.o
 obj-$(CONFIG_DRIVER_NET_AG71XX)		+= ag71xx.o
 obj-$(CONFIG_DRIVER_NET_GMAC_NETX4000)  += gmac-netx4000.o
+obj-$(CONFIG_DRIVER_NET_NETX4000_XCETH)  += netx4000-xceth.o
+netx4000-xceth-y := netx4000-xceth-main.o netx4000-xceth-hal.o

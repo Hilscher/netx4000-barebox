@@ -47,6 +47,13 @@ config DRIVER_NET_GMAC_NETX4000
 	help
 	  This selects support for the GMAC controller on Hilscher netX4000 based platforms.
 
+config DRIVER_NET_NETX4000_XCETH
+	bool "XCeth driver for Hilscher netX4000 based platforms"
+	depends on ARCH_NETX4000
+	select PHYLIB
+	help
+	  This selects support for the XCeth controller on Hilscher netX4000 based platforms.
+
 config DRIVER_NET_AT91_ETHER
 	bool "at91 ethernet driver"
 	depends on HAS_AT91_ETHER
