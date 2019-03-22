@@ -48,6 +48,7 @@ struct platform_data netx4000_xceth_pdata[] = {
 
 struct firmware_data {
 	struct firmware_mgr *mgr;
+	char *firmware;
 	char id[16];
 	uint32_t xcinst;
 };
@@ -172,10 +173,10 @@ static int netx4000_xceth_open(struct eth_device *edev)
 	req.id = priv->fw.id;
 	rc = firmwaremgr_ioctl(priv->fw.mgr, FW_START, &req);
 	if (rc) {
-		dev_err(dev, "Starting XC firmware %s failed!\n", priv->pdata->firmware);
+		dev_err(dev, "Starting XC firmware %s failed!\n", priv->fw.firmware);
 		return rc;
 	}
-	dev_dbg(dev, "Starting XC firmware %s successed\n", priv->pdata->firmware);
+	dev_dbg(dev, "Starting XC firmware %s successed\n", priv->fw.firmware);
 
 	rc = phy_device_connect(edev, NULL, -1, netx4000_xceth_update_linkspeed, 0, priv->interface);
 	if (rc)
@@ -230,15 +231,15 @@ static int netx4000_xceth_xc_init(struct eth_device *edev)
 		}
 
 		/* Uploading XC firmware only to firmware handler! */
-		rc = firmwaremgr_load_file(priv->fw.mgr, priv->pdata->firmware);
+		rc = firmwaremgr_load_file(priv->fw.mgr, priv->fw.firmware);
 		if (rc) {
-			dev_err(dev, "Loading XC firmware %s failed!\n", priv->pdata->firmware);
+			dev_err(dev, "Loading XC firmware %s failed!\n", priv->fw.firmware);
 			break;
 		}
-		dev_dbg(dev, "Loding XC firmware %s successed\n", priv->pdata->firmware);
+		dev_dbg(dev, "Loding XC firmware %s successed\n", priv->fw.firmware);
 
 		/* Store firmware id for further ioctl requests */
-		strncpy(priv->fw.id, strrchr(priv->pdata->firmware, '/')+1, sizeof(priv->fw.id)-1);
+		strncpy(priv->fw.id, strrchr(priv->fw.firmware, '/')+1, sizeof(priv->fw.id)-1);
 		*strchr(priv->fw.id, '_') = 0;
 
 		/* Initialize ioctl struct */
@@ -249,10 +250,10 @@ static int netx4000_xceth_xc_init(struct eth_device *edev)
 		req.data = (void **)&priv->fw.xcinst;
 		rc = firmwaremgr_ioctl(priv->fw.mgr, FW_REQUEST, &req);
 		if (rc) {
-			dev_err(dev, "Requesting XC firmware %s failed!\n", priv->pdata->firmware);
+			dev_err(dev, "Requesting XC firmware %s failed!\n", priv->fw.firmware);
 			break;
 		}
-		dev_dbg(dev, "Requesting XC firmware %s successed\n", priv->pdata->firmware);
+		dev_dbg(dev, "Requesting XC firmware %s successed\n", priv->fw.firmware);
 		req.data = NULL;
 
 		/* Check requested XC instance */
@@ -264,31 +265,31 @@ static int netx4000_xceth_xc_init(struct eth_device *edev)
 			default: priv->fw.xcinst = -1;
 		}
 		if (priv->fw.xcinst == -1) {
-			dev_err(dev, "Requested XC firmware %s returns invalid xcinst!\n", priv->pdata->firmware);
+			dev_err(dev, "Requested XC firmware %s returns invalid xcinst!\n", priv->fw.firmware);
 			break;
 		}
 
 		/* Resetting XC firmware */
 		rc = firmwaremgr_ioctl(priv->fw.mgr, FW_RESET, &req);
 		if (rc) {
-			dev_err(dev, "Resetting XC firmware %s failed!\n", priv->pdata->firmware);
+			dev_err(dev, "Resetting XC firmware %s failed!\n", priv->fw.firmware);
 			break;
 		}
-		dev_dbg(dev, "Resetting XC firmware %s successed\n", priv->pdata->firmware);
+		dev_dbg(dev, "Resetting XC firmware %s successed\n", priv->fw.firmware);
 
 		/* Uploading XC firmware to XC units! */
 		rc = firmwaremgr_ioctl(priv->fw.mgr, FW_UPLOAD, &req);
 		if (rc) {
-			dev_err(dev, "Uploading XC firmware %s failed!\n", priv->pdata->firmware);
+			dev_err(dev, "Uploading XC firmware %s failed!\n", priv->fw.firmware);
 			break;
 		}
-		dev_dbg(dev, "Uploading XC firmware %s successed\n", priv->pdata->firmware);
+		dev_dbg(dev, "Uploading XC firmware %s successed\n", priv->fw.firmware);
 
-		dev_dbg(dev, "Initializing XC firmware %s successed\n", priv->pdata->firmware);
+		dev_dbg(dev, "Initializing XC firmware %s successed\n", priv->fw.firmware);
 		return 0;
 	} while (0);
 
-	dev_err(dev, "Initializing XC firmware %s failed!\n", priv->pdata->firmware);
+	dev_err(dev, "Initializing XC firmware %s failed!\n", priv->fw.firmware);
 	return rc;
 }
 
@@ -307,9 +308,11 @@ static int netx4000_xceth_probe(struct device_d *dev)
 	}
 
 	rc = dev_get_drvdata(dev, (const void **)&priv->pdata);
-	if (rc) {
-		priv->pdata = xzalloc(sizeof(*priv->pdata));
-		rc = of_property_read_string(dev->device_node, "firmware", (const char **)&priv->pdata->firmware);
+	if (priv->pdata) {
+		priv->fw.firmware = priv->pdata->firmware;
+	}
+	else {
+		rc = of_property_read_string(dev->device_node, "firmware", (const char **)&priv->fw.firmware);
 		if (rc) {
 			dev_err(dev, "Invalid or missing 'firmware' node in DT!\n");
 			return rc;
@@ -355,11 +358,7 @@ static int netx4000_xceth_probe(struct device_d *dev)
 err_out:
 	dev_err(dev, "Initializing failed\n");
 
-	if (dev_get_drvdata(dev, (const void **)&priv->pdata)) {
-		free(priv->pdata);
-	}
-	if (priv)
-		free(priv);
+	free(priv);
 
 	return rc;
 }
