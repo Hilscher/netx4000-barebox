@@ -18,11 +18,16 @@
  *
  */
 
+#define DRIVER_DESC "GMAC driver for Hilscher netX4000 based platforms"
+#define DRIVER_NAME "gmac-netx4000"
+
 #include <common.h>
 #include <init.h>
 #include <io.h>
 #include <pinctrl.h>
 #include <malloc.h>
+
+#include <of_address.h>
 
 /**
  * struct pcs_gpiofunc_range - pin ranges with same mux value of gpio function
@@ -41,6 +46,7 @@ struct pcs_gpiofunc_range {
 
 struct pinctrl_single {
 	void __iomem *base;
+	void __iomem *keyaccess;
 	struct pinctrl_device pinctrl;
 	unsigned (*read)(void __iomem *reg);
 	void (*write)(unsigned val, void __iomem *reg);
@@ -102,6 +108,8 @@ static int pcs_set_state(struct pinctrl_device *pdev, struct device_node *np)
 		offset = be32_to_cpup(mux + index++);
 		val = be32_to_cpup(mux + index++);
 
+		if (pcs->keyaccess)
+			iowrite32(ioread32(pcs->keyaccess), pcs->keyaccess);
 		pcs->write(val, pcs->base + offset);
 	}
 
@@ -246,13 +254,32 @@ static int pcs_probe(struct device_d *dev)
 	pcs->pinctrl.base = 0;
 	pcs->pinctrl.npins = iores->end - iores->start + 1;
 
+	{ /* Add key access control support */
+		struct device_node *node;
+
+		node = of_get_child_by_name(np, "keyaccess-control");
+		if (node) {
+			pcs->keyaccess = of_iomap(node, 0);
+			if (!pcs->keyaccess) {
+				dev_err(dev, "Invalid or missing 'reg' node in DT!\n");
+				of_print_nodes(node, 1);
+				ret = -EINVAL;
+				goto out;
+			}
+		}
+	}
+
 	ret = pinctrl_register(&pcs->pinctrl);
 	if (ret)
 		goto out;
 
+	dev_info(dev, "Initializing successed!\n");
+
 	return 0;
 
 out:
+	dev_err(dev, "Initializing failed!\n");
+
 	free(pcs);
 
 	return ret;
@@ -271,6 +298,13 @@ static struct driver_d pcs_driver = {
 
 static int pcs_init(void)
 {
+	pr_info("%s: %s\n", DRIVER_NAME, DRIVER_DESC);
 	return platform_driver_register(&pcs_driver);
 }
 postcore_initcall(pcs_init);
+
+/* --- Module information --- */
+
+MODULE_AUTHOR("Hilscher Gesellschaft fuer Systemautomation mbH");
+MODULE_DESCRIPTION(DRIVER_DESC);
+MODULE_LICENSE("GPL v2");
