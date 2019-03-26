@@ -510,7 +510,7 @@ static int sdmmc_card_present(struct mci_host *mci)
 	u32 reg;
 
 	reg = readl(&regs->sd_info1);
-	if (reg & MSK_NX4000_SDIO_SD_INFO1_INFO10) /* check DAT3 level */ //reg &= 0x0020u;	/* check CD level */
+	if (reg & MSK_NX4000_SDIO_SD_INFO1_INFO5)  /* check CD level */
 		return 1; /* inserted */
 
 	return 0;
