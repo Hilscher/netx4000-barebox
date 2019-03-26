@@ -45,12 +45,6 @@ static inline int s##name(int val) { \
 regdef (0x1, 16, XC_MISC)
 regdef (0xff, 0, MMIO_SEL)
 
-#define MMIO01_CFG					(volatile void*)0xf4080404
-#define MMIO02_CFG					(volatile void*)0xf4080408
-#define MMIO03_CFG					(volatile void*)0xf408040c
-#define MMIO04_CFG					(volatile void*)0xf4080410
-regdef (0x1,  9, MMIO_OUT_INV)
-
 #define PHY_CONTROL					(volatile void*)0xf4023a20
 regdef (0x1, 31, PHY_RESET)
 regdef (0x1, 30, PHY_SIM_BYP)
@@ -218,30 +212,10 @@ static int netx4000_mdio_intphy_init(struct priv_data *priv)
 	}
 
 	if (addr == INTPHY0_ID) {
-		val32 = ioread32(MMIO01_CFG);
-		keyval = ioread32(ASIC_CTRL_ACCESS_KEY);
-		iowrite32(keyval, ASIC_CTRL_ACCESS_KEY);
-		iowrite32(sMMIO_OUT_INV(1)|sMMIO_SEL(0x77 /* phy0_led_phy_ctrl_act */), MMIO01_CFG);
-
-		val32 = ioread32(MMIO02_CFG);
-		keyval = ioread32(ASIC_CTRL_ACCESS_KEY);
-		iowrite32(keyval, ASIC_CTRL_ACCESS_KEY);
-		iowrite32(sMMIO_OUT_INV(1)|sMMIO_SEL(0x78 /* phy0_led_phy_ctrl_lnkj */), MMIO02_CFG);
-
 		val32 = ioread32(PHY_CONTROL);
 		iowrite32(val32|sPHY0_ENABLE(1), PHY_CONTROL);
 	}
 	else if (addr == INTPHY1_ID) {
-		val32 = ioread32(MMIO03_CFG);
-		keyval = ioread32(ASIC_CTRL_ACCESS_KEY);
-		iowrite32(keyval, ASIC_CTRL_ACCESS_KEY);
-		iowrite32(sMMIO_OUT_INV(1)|sMMIO_SEL(0x7b /* phy1_led_phy_ctrl_act */), MMIO03_CFG);
-
-		val32 = ioread32(MMIO04_CFG);
-		keyval = ioread32(ASIC_CTRL_ACCESS_KEY);
-		iowrite32(keyval, ASIC_CTRL_ACCESS_KEY);
-		iowrite32(sMMIO_OUT_INV(1)|sMMIO_SEL(0x7c /* phy1_led_phy_ctrl_lnk  */), MMIO04_CFG);
-
 		val32 = ioread32(PHY_CONTROL);
 		iowrite32(val32|sPHY1_ENABLE(1), PHY_CONTROL);
 	}
