@@ -91,24 +91,24 @@ struct platform_data {
 
 static struct platform_data netx4000_mdio_xc[] = {
 	{
-		.res = DEFINE_RES_MEM(INT_PHY_CTRL0, INT_PHY_CTRLx_SIZE),
+		.res = DEFINE_RES_MEM((unsigned int)INT_PHY_CTRL0, INT_PHY_CTRLx_SIZE),
 		.intphy_id = INTPHY0_ID,
 	},
 	{
-		.res = DEFINE_RES_MEM(INT_PHY_CTRL1, INT_PHY_CTRLx_SIZE),
+		.res = DEFINE_RES_MEM((unsigned int)INT_PHY_CTRL1, INT_PHY_CTRLx_SIZE),
 		.intphy_id = INTPHY1_ID,
 	},
 	{
-		.res = DEFINE_RES_MEM(INT_PHY_CTRL2, INT_PHY_CTRLx_SIZE),
+		.res = DEFINE_RES_MEM((unsigned int)INT_PHY_CTRL2, INT_PHY_CTRLx_SIZE),
 		.intphy_id = -1, /* only external PHYs are supported */
 	},
 	{
-		.res = DEFINE_RES_MEM(INT_PHY_CTRL3, INT_PHY_CTRLx_SIZE),
+		.res = DEFINE_RES_MEM((unsigned int)INT_PHY_CTRL3, INT_PHY_CTRLx_SIZE),
 		.intphy_id = -1, /* only external PHYs are supported */
 	},
 };
 
-static struct priv_data {
+struct priv_data {
 	struct device_d *dev;
 	struct platform_data *data;
 	struct mdiobb_ctrl ctrl;
@@ -185,8 +185,8 @@ static int netx4000_mdio_intphy_init(struct priv_data *priv)
 {
 	struct device_d *dev = priv->dev;
 	struct device_node *phy_node;
-	uint32_t keyval, val32, addr;
-	char *p8 = NULL;
+	uint32_t val32, addr;
+	const char *p8 = NULL;
 
 	dev_dbg(dev, "%s: +++ (*priv=%p)\n", __func__, priv);
 
@@ -238,7 +238,7 @@ static int netx4000_mdio_intphy_init(struct priv_data *priv)
 static int netx4000_mdio_probe(struct device_d *dev)
 {
 	struct priv_data *priv;
-	struct mii_bus *bus;
+	struct mii_bus *bus = NULL;
 	int rc;
 
 	dev_dbg(dev, "%s: +++ (*dev=%p)\n", __func__, dev);

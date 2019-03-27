@@ -65,7 +65,7 @@ regdef (0x1,  0, RPEC00)
 #define XC_PORT10_CLOCK_EN (sRPEC10(1)|sTPEC10(1)|sXMAC10(1))
 #define XC_PORT11_CLOCK_EN (sRPEC11(1)|sTPEC11(1)|sXMAC11(1))
 
-static struct priv_data {
+struct priv_data {
 	struct firmware_handler fh;
 	struct device_d *dev;
 	char *fwbuf, *pfwbuf;
@@ -102,7 +102,7 @@ typedef enum {
 	XC_PORT_TYPE_MAX
 } eXcPortType_t;
 
-static struct xcunit {
+struct xcunit {
 	char name[8];
 	eXcNo_t uXcNo;
 	eXcPortNo_t uXcPortNo;
@@ -150,7 +150,7 @@ typedef enum {
 	fw_stopped
 } eFwStatus_t;
 
-static struct firmware_data {
+struct firmware_data {
 	struct list_head list;
 	struct device_d *owner;
 	eFwStatus_t status;
@@ -430,7 +430,7 @@ static int netx4000_xc_parse_fw_dtb(struct firmware_handler *fh, char *buf)
 	struct device_d *dev = priv->dev;
 	struct device_node *root, *node;
 	struct property *prop;
-	struct firmware_data *fwdata;
+	struct firmware_data *fwdata = NULL;
 	int rc = 0;
 
 	dev_dbg(dev, "%s: +++ (*fh=%p, *buf=%p)\n", __func__, fh, buf);
@@ -490,7 +490,7 @@ static int netx4000_xc_parse_fw_dtb(struct firmware_handler *fh, char *buf)
 			if (!prop) {
 				/* Check for microcode in child nodes */
 				mc_node = NULL;
-				while (mc_node = of_get_next_available_child(node, mc_node)) {
+				while ((mc_node = of_get_next_available_child(node, mc_node))) {
 					prop = of_find_property(mc_node, xcunit[i].name, NULL);
 					if (prop)
 						break;

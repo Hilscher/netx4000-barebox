@@ -782,17 +782,17 @@ int xc_load(struct xc_res* xc, XC_TYPE_E eXcType, const uint32_t* pulXcPrg)
   /* get the start and end address of the ram area, get the physical address */
   switch( eXcType )
   {
-    case XC_TYPE_RPEC: pulRamStart     = xc->rpec_res->start;
-                       pulRamEnd       = xc->rpec_res->end;
+    case XC_TYPE_RPEC: pulRamStart     = (volatile uint32_t *)xc->rpec_res->start;
+                       pulRamEnd       = (volatile uint32_t *)xc->rpec_res->end;
                        break;
-    case XC_TYPE_TPEC: pulRamStart     = xc->tpec_res->start;
-                       pulRamEnd       = xc->tpec_res->end;
+    case XC_TYPE_TPEC: pulRamStart     = (volatile uint32_t *)xc->tpec_res->start;
+                       pulRamEnd       = (volatile uint32_t *)xc->tpec_res->end;
                        break;
-    case XC_TYPE_RPU:  pulRamStart     = xc->rpu_res->start;
-                       pulRamEnd       = xc->rpu_res->end;
+    case XC_TYPE_RPU:  pulRamStart     = (volatile uint32_t *)xc->rpu_res->start;
+                       pulRamEnd       = (volatile uint32_t *)xc->rpu_res->end;
                        break;
-    case XC_TYPE_TPU:  pulRamStart     = xc->tpu_res->start;
-                       pulRamEnd       = xc->tpu_res->end;
+    case XC_TYPE_TPU:  pulRamStart     = (volatile uint32_t *)xc->tpu_res->start;
+                       pulRamEnd       = (volatile uint32_t *)xc->tpu_res->end;
                        break;
 
     default:           return 2; /* unknown unit type */
@@ -811,8 +811,8 @@ int xc_load(struct xc_res* xc, XC_TYPE_E eXcType, const uint32_t* pulXcPrg)
     return 3;
   }
 
-  /* Map to virtual memory */
-  pulDst = phys_to_virt(pulDst);
+  /* TODO: Map to virtual memory */
+  pulDst = pulDst;
 
   /* get source start and end pointer */
   pulSrcStart = pulXcPrg + 3;
@@ -822,7 +822,6 @@ int xc_load(struct xc_res* xc, XC_TYPE_E eXcType, const uint32_t* pulXcPrg)
   pulSrcCnt = pulSrcStart;
   pulDstCnt = pulDst;
   while( pulSrcCnt<pulSrcEnd ) {
-    //TODO: get offset for virt addr
     *pulDstCnt = *pulSrcCnt;
     pulDstCnt++;
     pulSrcCnt++;
@@ -855,8 +854,8 @@ int xc_load(struct xc_res* xc, XC_TYPE_E eXcType, const uint32_t* pulXcPrg)
     /* get the destination address ( ram_virtual_start + data_physical_start - ram_physical_start) */
     pulDst = (volatile uint32_t*) *pulSrcCnt;
 
-    /* Map to virtual memory */
-    pulDst = phys_to_virt(pulDst);
+    /* TODO: Map to virtual memory */
+    pulDst = pulDst;
 
     pulSrcCnt++;
 

@@ -155,7 +155,7 @@ static int netx4000_xceth_release_fifo_res(struct fifo_res *fifoRes)
 {
 	uint8_t xcinst = fifoRes->xcinst;
 	uint8_t xcNo   = fifoRes->xcNo;
-	uint8_t xcPortNo = fifoRes->xcPortNo;
+// 	uint8_t xcPortNo = fifoRes->xcPortNo;
 
 	if (XpecDRam_res[xcinst])
 		release_region(XpecDRam_res[xcinst]);
@@ -269,7 +269,7 @@ static int netx4000_xceth_release_fifo_res(struct fifo_res *fifoRes)
 {
 	uint8_t xcinst = fifoRes->xcinst;
 	uint8_t xcNo   = fifoRes->xcNo;
-	uint8_t xcPortNo = fifoRes->xcPortNo;
+// 	uint8_t xcPortNo = fifoRes->xcPortNo;
 
 	if (XpecDRam_res[xcinst])
 		release_region(XpecDRam_res[xcinst], resource_size(XpecDRam_res[xcinst]));
