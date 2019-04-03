@@ -495,7 +495,7 @@ static int sdmmc_init(struct mci_host *mci, struct device_d *dev)
 	writel( tmpreg, &regs->sd_info1);
 	writel( 0x00000000, &regs->sd_info2);
 	writel( 0x00000000, &regs->sdio_info1);
-	writel( 0x0000C0EE, &regs->sd_option);/* max. timeout */
+	writel( 0x0000C0E0, &regs->sd_option);/* max. timeout, minimum card detect timeout (clk*2^10 = 10,2 us) */
 
 	sdmmc_set_clock(host, 400000);
 	writel( ~0x10,&regs->sd_info1);
@@ -508,6 +508,9 @@ static int sdmmc_card_present(struct mci_host *mci)
 	struct sdmmc_host *host = to_sdmmc_host(mci);
 	struct netx4000_sdio_reg __iomem *regs = host->regs;
 	u32 reg;
+
+	/* Wait for 50us to make sure card detect has been sampled at least once correctly */
+	udelay(50);
 
 	reg = readl(&regs->sd_info1);
 	if (reg & MSK_NX4000_SDIO_SD_INFO1_INFO5)  /* check CD level */
@@ -540,6 +543,8 @@ static int sdmmc_probe(struct device_d *dev)
 	mci->hw_dev = dev;
 	mci->f_max = clk_get_rate(host->clk);
 	mci->f_min = clk_get_rate(host->clk)/512;
+
+	writel( 0x0000C0E0, &host->regs->sd_option);/* max. timeout, minimum card detect timeout (clk*2^10 = 10,2 us) */
 
 	/* setup function pointer */
 	mci->init = sdmmc_init;
