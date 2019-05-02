@@ -28,9 +28,12 @@
 #include <init.h>
 #include <clock.h>
 #include <asm/io.h>
+#include <asm/mmu.h>
 #include <gpio.h>
 #include <of_gpio.h>
 #include <linux/clk.h>
+#include <dma.h>
+#include <mach/regdef_netx4000.h>
 #include "mci-netx4000.h"
 #include <mci.h>
 #include "sdhci.h"
@@ -134,6 +137,50 @@ static int wait_for_buffer_ready(struct sdmmc_host *host) {
 	return ret;
 }
 
+#define DMA_SDBUF_RW_EN 0x2
+static void execute_dma(u32 direction, volatile uint8_t* src, volatile uint8_t* dst, u32 count)
+{
+	uint8_t channel = (direction == DMA_FROM_DEVICE) ? 0 : 1;
+	volatile NX4000_RAP_DMAC_CH_AREA_T  *dmach  = (NX4000_RAP_DMAC_CH_AREA_T*)(Addr_NX4000_RAP_DMAC0 + channel * 0x40);
+	volatile NX4000_RAP_DMAC_REG_AREA_T *dmareg = (NX4000_RAP_DMAC_REG_AREA_T*)(Addr_NX4000_RAP_DMAC0_REG);
+
+	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREN;
+	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SWRST;
+
+	dmach->asRAP_DMAC_CH_N[0].ulSA = src;
+	dmach->asRAP_DMAC_CH_N[0].ulDA = dst;
+	dmach->asRAP_DMAC_CH_N[0].ulTB = count;
+
+	if(direction == DMA_FROM_DEVICE) {
+		dmach->ulRAP_DMAC_CH_CHCFG = MSK_NX4000_RAP_DMAC_CH_CHCFG_TM  |        /* Block transfer -> memory to memory */
+					     (4 << SRT_NX4000_RAP_DMAC_CH_CHCFG_DDS) | /* 128 bits */
+					     (3 << SRT_NX4000_RAP_DMAC_CH_CHCFG_SDS) | /* 64 bits */
+					     (4 << SRT_NX4000_RAP_DMAC_CH_CHCFG_AM);  /* No ack output */
+		dma_sync_single_for_device( dst, count, DMA_FROM_DEVICE);
+	} else {
+		dmach->ulRAP_DMAC_CH_CHCFG = MSK_NX4000_RAP_DMAC_CH_CHCFG_TM  |        /* Block transfer */
+					     (3 << SRT_NX4000_RAP_DMAC_CH_CHCFG_DDS) | /* 64 bits */
+					     (4 << SRT_NX4000_RAP_DMAC_CH_CHCFG_SDS) | /* 128 bits */
+					     (4 << SRT_NX4000_RAP_DMAC_CH_CHCFG_AM);  /* No ack output */
+		dma_sync_single_for_device( src, count, DMA_TO_DEVICE);
+	}
+
+	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SETEN |
+				      MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLRSUS;
+	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_STG;       /* Software triggered DMA */
+
+	/* Wait for DMA to finish */
+	while((dmareg->ulRAP_DMAC_REG_DST_END & (1 << channel)) == 0) {}
+	/* clear status */
+	dmach->ulRAP_DMAC_CH_CHCTRL |= MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLRINTMSK | MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREND;
+
+	if(direction == DMA_FROM_DEVICE) {
+		dma_sync_single_for_cpu( dst, count, DMA_FROM_DEVICE);
+	} else {
+		dma_sync_single_for_cpu( src, count, DMA_TO_DEVICE);
+	}
+}
+
 static int wait_for_access_end(struct sdmmc_host *host)
 {
 	int ret = 0;
@@ -148,51 +195,30 @@ static int wait_for_access_end(struct sdmmc_host *host)
 
 static int read_data( struct sdmmc_host *host, uint8_t *buff, long num)
 {
-	uint32_t data32 = 0;
-	uint32_t count = num/sizeof(uint32_t);
-	while(count>0) {
-		data32 = readl(&host->regs->sd_buf0);
-		*(buff++) = (uint8_t) (data32 & 0x000000FF);
-		*(buff++) = (uint8_t)((data32 & 0x0000FF00)>> 8);
-		*(buff++) = (uint8_t)((data32 & 0x00FF0000)>>16);
-		*(buff++) = (uint8_t)((data32 & 0xFF000000)>>24);
-		num -= sizeof(uint32_t);
-		count--;
-	}
-	if(num>0) {
-		int i;
-		data32 = readl(&host->regs->sd_buf0);
-		for(i=0;i<num;i++) {
-			*(buff++) = data32 & 0xFF;
-			data32    = (data32 >> (8*i));
-		}
+	volatile uint8_t* src = (volatile  uint8_t*)host->regs + 0x200;
+
+	memset(buff, 0, num);
+
+	while(num > 0) {
+		u32 chunk_size = min(512, num);
+		execute_dma(DMA_FROM_DEVICE, src, buff, chunk_size);
+		buff += chunk_size;
+		num  -= chunk_size;
 	}
 	return 0;
 }
 
 static int write_data( struct sdmmc_host *host, const uint8_t *buff, long num)
 {
-	uint32_t data32 = 0;
-	uint32_t count = num/sizeof(uint32_t);
-	while(count>0) {
-		data32  = (*buff++);
-		data32 |= (*buff++ <<  8);
-		data32 |= (*buff++ << 16);
-		data32 |= (*buff++ << 24);
-		writel(data32, &host->regs->sd_buf0);
-		num -= sizeof(uint32_t);
-		count--;
-	}
-	if(num>0) {
-		int i;
-		data32 = 0;
-		for(i=0;i<num;i--) {
-			data32 |= (*buff++ << (8*i));
-		}
-		writel( data32, &host->regs->sd_buf0);
+	volatile uint8_t* dst = (volatile uint8_t*)host->regs + 0x200;
+
+	while(num > 0) {
+		u32 chunk_size = min(512, num);
+		execute_dma(DMA_TO_DEVICE, buff, dst, num);
+		buff += chunk_size;
+		num  -= chunk_size;
 	}
 	return 0;
-
 }
 
 static int transfer_data( struct sdmmc_host *host, const uint8_t *buff, long cnt, long size, int dir)
@@ -482,7 +508,7 @@ static int sdmmc_init(struct mci_host *mci, struct device_d *dev)
 	writel( 0x0000C007, &regs->sdio_info1_mask); /* disable all interrupts */
 
 	/* initialize all register */
-	writel( 0x00000000, &regs->cc_ext_mode);
+	writel( DMA_SDBUF_RW_EN, &regs->cc_ext_mode);
 	writel( 0x00000000, &regs->sdif_mode);
 	writel( 0x00000000, &regs->host_mode);/* 32-bit access */
 	writel( 0x00000000, &regs->sdio_mode);
