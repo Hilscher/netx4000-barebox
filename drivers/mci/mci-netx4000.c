@@ -137,12 +137,110 @@ static int wait_for_buffer_ready(struct sdmmc_host *host) {
 	return ret;
 }
 
+struct dma_link {
+	uint32_t header;
+	uint32_t src;
+	uint32_t dst;
+	uint32_t count;
+	uint32_t cfg;
+	uint32_t interval;
+	uint32_t ext;
+	uint32_t nlink;
+};
+
 #define DMA_SDBUF_RW_EN 0x2
+#define DMA_BLOCK_SIZE_MAX 512
+/* NOTE: For best performance set list size to maximum of read/write buffer commonly used. */
+/*       See BUFSIZE in common/block.c => list length=(BUFSIZE/DMA_BLOCK_SIZE_MAX)         */
+/*       Because of the overhead of a transaction the list length has a tight connection   */
+/*       to the performance. */
+#define DMA_LINKS 32
+
+struct dma_link dma_links[DMA_LINKS];
+
+static void execute_dma_list(u32 direction, volatile uint8_t* src, volatile uint8_t* dst, u32 count)
+{
+	int i = 0;
+	uint8_t channel = (direction == DMA_FROM_DEVICE) ? 0 : 1;
+
+	volatile NX4000_RAP_DMAC_CH_AREA_T  *dmach  = (NX4000_RAP_DMAC_CH_AREA_T*)(Addr_NX4000_RAP_DMAC1 + channel * 0x40);
+	volatile NX4000_RAP_DMAC_REG_AREA_T *dmareg = (NX4000_RAP_DMAC_REG_AREA_T*)(Addr_NX4000_RAP_DMAC1_REG);
+
+	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREN;
+	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SWRST;
+
+	for(i=0;i<count/DMA_BLOCK_SIZE_MAX;i++) {
+		if (direction == DMA_FROM_DEVICE) {
+			dma_links[i].src = (uint32_t)src;
+			dma_links[i].dst = (uint32_t)dst + i*DMA_BLOCK_SIZE_MAX;
+		} else {
+			dma_links[i].src = (uint32_t)src + i*DMA_BLOCK_SIZE_MAX;
+			dma_links[i].dst = (uint32_t)dst;
+		}
+		dma_links[i].count = DMA_BLOCK_SIZE_MAX;
+		dma_links[i].nlink = 0;
+		dma_links[i].header = 3;
+		if (i>0) {
+			dma_links[i-1].nlink = &dma_links[i];
+			dma_links[i-1].header = 1;
+		}
+		if(direction == DMA_FROM_DEVICE) {
+			dma_links[i].cfg = \
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_DMS        | /* link mode */
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_TM         | /* block */
+			(4 << SRT_NX4000_RAP_DMAC_CH_CHCFG_DDS) | /* 128-bit dst */
+			(3 << SRT_NX4000_RAP_DMAC_CH_CHCFG_SDS) | /* 64-bit src */
+			(2 << SRT_NX4000_RAP_DMAC_CH_CHCFG_AM)  | /* bus cycle */
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_LVL        | /* level */
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_HIEN       | /* high */
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_REQD;        /* request dest */
+		} else {
+			dma_links[i].cfg = \
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_DMS        | /* link mode */
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_TM         | /* block */
+			(3 << SRT_NX4000_RAP_DMAC_CH_CHCFG_DDS) | /* 64-bit dst */
+			(4 << SRT_NX4000_RAP_DMAC_CH_CHCFG_SDS) | /* 128-bit src */
+			(2 << SRT_NX4000_RAP_DMAC_CH_CHCFG_AM)  | /* bus cycle */
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_LVL        | /* level */
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_HIEN       | /* high */
+			MSK_NX4000_RAP_DMAC_CH_CHCFG_REQD       | /* request dest */
+			(1 << SRT_NX4000_RAP_DMAC_CH_CHCFG_SEL);  /* terminal 1 */
+
+		}
+	}
+	dmach->ulRAP_DMAC_CH_NXLA = &dma_links[0];
+	dmach->ulRAP_DMAC_CH_CHCFG = MSK_NX4000_RAP_DMAC_CH_CHCFG_DMS; /* link mode */
+
+	/* sync the lists */
+	dma_sync_single_for_device( &dma_links[0], sizeof(struct dma_link)*count/DMA_BLOCK_SIZE_MAX, DMA_TO_DEVICE);
+	if(direction == DMA_FROM_DEVICE) {
+		dma_sync_single_for_device( dst, count, DMA_FROM_DEVICE);
+	} else {
+		dma_sync_single_for_device( src, count, DMA_TO_DEVICE);
+	}
+	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SETEN |
+				      MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLRSUS;
+	/* Wait for DMA to finish */
+	while ((dmach->ulRAP_DMAC_CH_CHSTAT & 1) != 0){}
+
+	/* clear status */
+	dmach->ulRAP_DMAC_CH_CHCTRL |= MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLRINTMSK | MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREND;
+
+	if(direction == DMA_FROM_DEVICE) {
+		dma_sync_single_for_cpu( dst, count, DMA_FROM_DEVICE);
+	} else {
+		/* write */
+		dma_sync_single_for_cpu( src, count, DMA_TO_DEVICE);
+	}
+}
+
+
 static void execute_dma(u32 direction, volatile uint8_t* src, volatile uint8_t* dst, u32 count)
 {
 	uint8_t channel = (direction == DMA_FROM_DEVICE) ? 0 : 1;
-	volatile NX4000_RAP_DMAC_CH_AREA_T  *dmach  = (NX4000_RAP_DMAC_CH_AREA_T*)(Addr_NX4000_RAP_DMAC0 + channel * 0x40);
-	volatile NX4000_RAP_DMAC_REG_AREA_T *dmareg = (NX4000_RAP_DMAC_REG_AREA_T*)(Addr_NX4000_RAP_DMAC0_REG);
+
+	volatile NX4000_RAP_DMAC_CH_AREA_T  *dmach  = (NX4000_RAP_DMAC_CH_AREA_T*)(Addr_NX4000_RAP_DMAC1 + channel * 0x40);
+	volatile NX4000_RAP_DMAC_REG_AREA_T *dmareg = (NX4000_RAP_DMAC_REG_AREA_T*)(Addr_NX4000_RAP_DMAC1_REG);
 
 	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREN;
 	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SWRST;
@@ -164,13 +262,13 @@ static void execute_dma(u32 direction, volatile uint8_t* src, volatile uint8_t* 
 					     (4 << SRT_NX4000_RAP_DMAC_CH_CHCFG_AM);  /* No ack output */
 		dma_sync_single_for_device( src, count, DMA_TO_DEVICE);
 	}
-
 	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SETEN |
 				      MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLRSUS;
 	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_STG;       /* Software triggered DMA */
 
 	/* Wait for DMA to finish */
-	while((dmareg->ulRAP_DMAC_REG_DST_END & (1 << channel)) == 0) {}
+	while ((dmach->ulRAP_DMAC_CH_CHSTAT & 1) != 0){}
+
 	/* clear status */
 	dmach->ulRAP_DMAC_CH_CHCTRL |= MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLRINTMSK | MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREND;
 
@@ -199,12 +297,11 @@ static int read_data( struct sdmmc_host *host, uint8_t *buff, long num)
 
 	memset(buff, 0, num);
 
-	while(num > 0) {
-		u32 chunk_size = min(512, num);
-		execute_dma(DMA_FROM_DEVICE, src, buff, chunk_size);
-		buff += chunk_size;
-		num  -= chunk_size;
-	}
+	if (num<=DMA_BLOCK_SIZE_MAX)
+		execute_dma(DMA_FROM_DEVICE, src, buff, num);
+	else
+		execute_dma_list(DMA_FROM_DEVICE, src, buff, num);
+
 	return 0;
 }
 
@@ -212,12 +309,11 @@ static int write_data( struct sdmmc_host *host, const uint8_t *buff, long num)
 {
 	volatile uint8_t* dst = (volatile uint8_t*)host->regs + 0x200;
 
-	while(num > 0) {
-		u32 chunk_size = min(512, num);
+	if (num<=DMA_BLOCK_SIZE_MAX)
 		execute_dma(DMA_TO_DEVICE, buff, dst, num);
-		buff += chunk_size;
-		num  -= chunk_size;
-	}
+	else
+		execute_dma_list(DMA_TO_DEVICE, buff, dst, num);
+
 	return 0;
 }
 
@@ -226,30 +322,49 @@ static int transfer_data( struct sdmmc_host *host, const uint8_t *buff, long cnt
 	long i;
 	int err = 0;
 
-	for(i=cnt; i>0 ;i--){
-		/* wait BWE/BRE or error */
-		if (0>(err = wait_for_buffer_ready(host))) {
-			break;
+	if ((cnt>1) && (size == DMA_BLOCK_SIZE_MAX)) {
+		if (cnt>DMA_LINKS) {
+			dev_err(host->dev, "Not enough resources for DMA\n");
+			return -EIO;
 		}
+		/* if there is more than one 512 byte block, then do it with a dma list */
+		/* thats why we dont need to wait here for buffer ready ... */
 		if (dir == MMC_DATA_READ) {
 			/* read to SD_BUF */
-			if(read_data(host, (uint8_t*)buff, size) != 0){
+			if(read_data(host, (uint8_t*)buff, cnt*size) != 0){
 				err = -EIO;
-				break;
 			}
 		} else {
 			/* write to SD_BUF */
-			if(write_data(host, buff, size) != 0){
+			if(write_data(host, buff, cnt*size) != 0){
 				err = -EIO;
-				break;
 			}
 		}
-		/* update buffer */
-		buff+=size;
+	} else {
+		for(i=cnt; i>0 ;i--){
+			/* wait BWE/BRE or error */
+			if (0>(err = wait_for_buffer_ready(host))) {
+				break;
+			}
+			if (dir == MMC_DATA_READ) {
+				/* read to SD_BUF */
+				if(read_data(host, (uint8_t*)buff, size) != 0){
+					err = -EIO;
+					break;
+				}
+			} else {
+				/* write to SD_BUF */
+				if(write_data(host, buff, size) != 0){
+					err = -EIO;
+					break;
+				}
+			}
+			/* update buffer */
+			buff+=size;
+		}
+		if (err == 0)
+			err = wait_for_access_end( host);
 	}
-	if (err == 0)
-		err = wait_for_access_end( host);
-
 	return err;
 }
 
@@ -560,6 +675,7 @@ static int sdmmc_probe(struct device_d *dev)
 		dev_err(dev, "could not get iomem region\n");
 		return -ENODEV;
 	}
+	memset(dma_links, 0, sizeof(struct dma_link)*DMA_LINKS);
 
 	host->clk = clk_get(dev, NULL);
 	if (IS_ERR(host->clk))
