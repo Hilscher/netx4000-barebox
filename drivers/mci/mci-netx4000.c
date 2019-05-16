@@ -447,10 +447,11 @@ static void sdmmc_set_clock(struct sdmmc_host *host, u32 clock)
 	/* calculate new clock divider ... */
 	if (clock>=max) {
 		writel( 0xFF, &host->regs->sd_clk_ctrl);
+		clock_setting = 0xFF;
 	} else {
 		div = 2;
 		while (div < 1024) {
-			if (clock>(max/div))
+			if (clock>=(max/div))
 				break;
 
 			div <<= 1;
@@ -579,7 +580,7 @@ static int sdmmc_probe(struct device_d *dev)
 	mci->set_ios = sdmmc_set_ios;
 	//TODO: voltage
 	mci->voltages = 0x00FF8000;//MMC_VDD_32_33 | MMC_VDD_33_34 | MMC_VDD_165_195;
-	mci->host_caps |= MMC_CAP_4_BIT_DATA;
+	mci->host_caps |= MMC_CAP_4_BIT_DATA | MMC_CAP_SD_HIGHSPEED;
 
 	dev->priv = host;
 	//TODO: device detect func
