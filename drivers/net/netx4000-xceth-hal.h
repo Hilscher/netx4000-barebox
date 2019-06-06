@@ -45,10 +45,14 @@ struct fifo_res {
 };
 
 /* Prototypes */
-void netx4000_pfifo_initial_reset(void);
+void netx4000_pfifo_reset(uint8_t xcNo);
 
 int netx4000_xceth_fifo_release(uint8_t xcinst);
+#ifdef __BAREBOX_CODE
 int netx4000_xceth_fifo_request(struct device_d *dev, uint8_t xcinst);
+#else
+int netx4000_xceth_fifo_request(struct device *dev, uint8_t xcinst);
+#endif
 
 void netx4000_xceth_initFifoUnit(unsigned int uiPort);
 int netx4000_xceth_set_link_mode(unsigned int uiPort, bool fValid, unsigned int uiSpeed, bool fFdx);
@@ -56,10 +60,15 @@ int netx4000_xceth_set_mac_address(uint32_t uiPort, ETH_MAC_ADDRESS_TYPE_E eType
 int netx4000_xceth_get_mac_address(uint32_t uiPort, ETH_MAC_ADDRESS_TYPE_E eType, ETHERNET_MAC_ADDR_T* ptMacAddr);
 int netx4000_xceth_get_frame(unsigned int uiPort, ETHERNET_FRAME_T** pptFrame, void** phFrame);
 int netx4000_xceth_send_frame(unsigned int uiPort, void* hFrame, uint32_t ulLength, unsigned int uHighPriority);
+int netx4000_xceth_get_send_cnf_fill_level(unsigned int uiPort, unsigned int uHighPriority, uint32_t *pulCnfFillLevel);
 int netx4000_xceth_get_send_cnf(unsigned int uiPort, ETHERNET_FRAME_T** pptFrame, void** phFrame, uint32_t* pulLength, unsigned int uHighPriority);
 int netx4000_xceth_send_frame_without_cnf(unsigned int uiPort, void* hFrame, uint32_t ulLength, unsigned int uHighPriority);
 int netx4000_xceth_get_recv_fill_level(unsigned int uiPort, unsigned int uHighPriority, uint32_t *pulFillLevel);
 int netx4000_xceth_recv_frame(unsigned int uiPort, ETHERNET_FRAME_T** pptFrame, void** phFrame, uint32_t* pulLength, unsigned int uHighPriority);
 int netx4000_xceth_release_frame(unsigned int uiPort, void* hFrame);
+int netx4000_xceth_set_irq(uint8_t xcinst, uint32_t mask);
+uint32_t netx4000_xceth_get_irq(uint8_t port);
+void netx4000_xceth_confirm_irq(uint8_t port, uint32_t mask);
+int netx4000_xceth_mode_promisc(unsigned int uiPort, unsigned int uEnable );
 
 #endif

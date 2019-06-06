@@ -65,6 +65,8 @@ struct priv_data {
 	void *hFrame;
 };
 
+uint8_t pfifo_reset_done = 0;
+
 /* --------------------------------------------------------------------------
  * Send and receive functions
  * -------------------------------------------------------------------------- */
@@ -344,6 +346,16 @@ static int netx4000_xceth_probe(struct device_d *dev)
 		goto err_out;
 	}
 
+	do { /* Resetting pfifo only once per XC unit (2 ports) */
+		uint8_t xcNo = priv->fw.xcinst >> 1;
+
+		if (pfifo_reset_done & (1 << xcNo))
+			break;
+
+		pfifo_reset_done |= (1 << xcNo);
+		netx4000_pfifo_reset(xcNo);
+	} while (0);
+
 	/* Configure MAC address */
 	if (of_get_mac_address(dev->device_node))
 		netx4000_xceth_set_ethaddr(edev, of_get_mac_address(dev->device_node));
@@ -382,9 +394,6 @@ static struct driver_d netx4000_xceth_driver = {
 
 static int __init netx4000_xceth_init(void)
 {
-	/* FIXME: reset pointer FIFO borders */
-	netx4000_pfifo_initial_reset();
-
 	pr_info("%s: %s\n", DRIVER_NAME, DRIVER_DESC);
 	return platform_driver_register(&netx4000_xceth_driver);
 }

@@ -33,8 +33,16 @@
 
 #else
 // 	#warning "LINUX_CODE"
-	/* Linux specific code */
+	#include <linux/device.h>
+	#include <linux/slab.h>
+	#include <linux/io.h>
+	#include <linux/ioport.h>
+
+	#include "netx4000-xc-res.h"
+	#include "netx4000-xceth-hal.h"
 #endif
+
+#define __ETHMAC_DISABLE_CHECKS__  1
 
 /******************************************************************************/
 /* Definitions                                                                */
@@ -123,30 +131,22 @@ static uint32_t refcount_bitfield = 0;
 /* HAL function code                                                          */
 /******************************************************************************/
 
-static void netx4000_pfifo_reset(unsigned int uInstNo)
+void netx4000_pfifo_reset(uint8_t xcNo)
 {
 	unsigned int uCnt;
 
-	pr_debug("%s: +++ (uInstNo %i)\n", __func__, uInstNo);
-
-	if (uInstNo < PFIFO_INST_CNT) {
+	if (xcNo < PFIFO_INST_CNT) {
 		/* set reset flag of all fifos */
-		iowrite32(0xffffffff, &_s_aptPFifo[uInstNo]->ulPfifo_reset);
+		iowrite32(0xffffffff, &s_aptPFifo[xcNo]->ulPfifo_reset);
 
 		/* reset pointer fifo borders */
 		for(uCnt = 0; uCnt < 32; uCnt++) {
-			iowrite32(((uCnt+1)* 100)-1, &_s_aptPFifo[uInstNo]->aulPfifo_border[uCnt]) ;
+			iowrite32(((uCnt+1)* 100)-1, &s_aptPFifo[xcNo]->aulPfifo_border[uCnt]) ;
 		}
 
 		/* clear reset flag of all fifos */
-		iowrite32(0, &_s_aptPFifo[uInstNo]->ulPfifo_reset);
+		iowrite32(0, &s_aptPFifo[xcNo]->ulPfifo_reset);
 	}
-}
-
-void netx4000_pfifo_initial_reset(void)
-{
-	for(int i=0; i<PFIFO_INST_CNT; i++)
-		netx4000_pfifo_reset(i);
 }
 
 #ifdef __BAREBOX_CODE
@@ -157,26 +157,40 @@ static int netx4000_xceth_release_fifo_res(struct fifo_res *fifoRes)
 	uint8_t xcNo   = fifoRes->xcNo;
 // 	uint8_t xcPortNo = fifoRes->xcPortNo;
 
-	if (XpecDRam_res[xcinst])
+	if (XpecDRam_res[xcinst]) {
 		release_region(XpecDRam_res[xcinst]);
-	if (XpecIrqRegs_res[xcinst])
+		XpecDRam_res[xcinst] = NULL;
+	}
+	if (XpecIrqRegs_res[xcinst]) {
 		release_region(XpecIrqRegs_res[xcinst]);
+		XpecIrqRegs_res[xcinst] = NULL;
+	}
 
 	refcount_bitfield &= ~(1<<xcinst);
 
 	if ((refcount_bitfield & (0x3<<xcNo)) == 0) {
-		if (PFifo_res[xcNo])
+		if (PFifo_res[xcNo]) {
 			release_region(PFifo_res[xcNo]);
+			PFifo_res[xcNo] = NULL;
+		}
 	}
 	if (refcount_bitfield == 0) {
-		if (IntRamStart_res[0])
+		if (IntRamStart_res[0]) {
 			release_region(IntRamStart_res[0]);
-		if (IntRamStart_res[1])
+			IntRamStart_res[0] = NULL;
+		}
+		if (IntRamStart_res[1]) {
 			release_region(IntRamStart_res[1]);
-		if (IntRamStart_res[2])
+			IntRamStart_res[1] = NULL;
+		}
+		if (IntRamStart_res[2]) {
 			release_region(IntRamStart_res[2]);
-		if (IntRamStart_res[3])
+			IntRamStart_res[2] = NULL;
+		}
+		if (IntRamStart_res[3]) {
 			release_region(IntRamStart_res[3]);
+			IntRamStart_res[3] = NULL;
+		}
 	}
 
 	free(fifoRes);
@@ -190,8 +204,6 @@ static struct fifo_res *netx4000_xceth_alloc_fifo_res(struct device_d *dev, uint
 	struct resource *res;
 	uint8_t xcNo   = xcinst >> 1;
 	uint8_t xcPortNo = xcinst & 1;
-
-	pr_debug("%s: +++ (dev %p, xcinst %i)\n", __func__, dev, xcinst);
 
 	fifoRes = xzalloc(sizeof(*fifoRes));
 	if (!fifoRes)
@@ -271,41 +283,55 @@ static int netx4000_xceth_release_fifo_res(struct fifo_res *fifoRes)
 	uint8_t xcNo   = fifoRes->xcNo;
 // 	uint8_t xcPortNo = fifoRes->xcPortNo;
 
-	if (XpecDRam_res[xcinst])
-		release_region(XpecDRam_res[xcinst], resource_size(XpecDRam_res[xcinst]));
-	if (XpecIrqRegs_res[xcinst])
-		release_region(XpecIrqRegs_res[xcinst], resource_size(XpecIrqRegs_res[xcinst]));
+	if (XpecDRam_res[xcinst]) {
+		release_mem_region(XpecDRam_res[xcinst]->start, resource_size(XpecDRam_res[xcinst]));
+		XpecDRam_res[xcinst] = NULL;
+	}
+	if (XpecIrqRegs_res[xcinst]) {
+		release_mem_region(XpecIrqRegs_res[xcinst]->start, resource_size(XpecIrqRegs_res[xcinst]));
+		XpecIrqRegs_res[xcinst] = NULL;
+	}
 
 	refcount_bitfield &= ~(1<<xcinst);
 
 	if ((refcount_bitfield & (0x3<<xcNo)) == 0) {
-		if (PFifo_res[xcNo])
-			release_region(PFifo_res[xcNo], resource_size(PFifo_res[xcNo]));
+		if (PFifo_res[xcNo]) {
+			release_mem_region(PFifo_res[xcNo]->start, resource_size(PFifo_res[xcNo]));
+			PFifo_res[xcNo] = NULL;
+		}
 	}
 	if (refcount_bitfield == 0) {
-		if (IntRamStart_res[0])
-			release_region(IntRamStart_res[0], resource_size(IntRamStart_res[0]));
-		if (IntRamStart_res[1])
-			release_region(IntRamStart_res[1], resource_size(IntRamStart_res[1]));
-		if (IntRamStart_res[2])
-			release_region(IntRamStart_res[2], resource_size(IntRamStart_res[2]));
-		if (IntRamStart_res[3])
-			release_region(IntRamStart_res[3], resource_size(IntRamStart_res[3]));
+		if (IntRamStart_res[0]) {
+			release_mem_region(IntRamStart_res[0]->start, resource_size(IntRamStart_res[0]));
+			IntRamStart_res[0] = NULL;
+		}
+		if (IntRamStart_res[1]) {
+			release_mem_region(IntRamStart_res[1]->start, resource_size(IntRamStart_res[1]));
+			IntRamStart_res[1] = NULL;
+		}
+		if (IntRamStart_res[2]) {
+			release_mem_region(IntRamStart_res[2]->start, resource_size(IntRamStart_res[2]));
+			IntRamStart_res[2] = NULL;
+		}
+		if (IntRamStart_res[3]) {
+			release_mem_region(IntRamStart_res[3]->start, resource_size(IntRamStart_res[3]));
+			IntRamStart_res[3] = NULL;
+		}
 	}
 
-	free(fifoRes);
+	kfree(fifoRes);
 
 	return 0;
 }
 
-static struct fifo_res *netx4000_xceth_alloc_fifo_res(struct device_d *dev, uint8_t xcinst)
+static struct fifo_res *netx4000_xceth_alloc_fifo_res(struct device *dev, uint8_t xcinst)
 {
 	struct fifo_res *fifoRes;
 	struct resource *res;
 	uint8_t xcNo   = xcinst >> 1;
 	uint8_t xcPortNo = xcinst & 1;
 
-	fifoRes = xzalloc(sizeof(*fifoRes));
+	fifoRes = kzalloc(sizeof(*fifoRes), GFP_KERNEL);
 	if (!fifoRes)
 		return NULL;
 
@@ -314,42 +340,41 @@ static struct fifo_res *netx4000_xceth_alloc_fifo_res(struct device_d *dev, uint
 	fifoRes->xcPortNo = xcPortNo;
 
 	do {
-		request_mem_region((resource_size_t)s_apulRpecPramArea[uiPort], (resource_size_t)XPEC_RAM_SIZE, dev_name(dev));
 		res = request_mem_region((resource_size_t)_s_apulXpecDramArea[xcinst], (resource_size_t)XPEC_RAM_SIZE, dev_name(dev));
-		if (IS_ERR(res))
+		if (res == NULL)
 			break;
 		XpecDRam_res[xcinst] = res;
 
 		res = request_mem_region((resource_size_t)_s_ptXpecIrqRegs[xcinst], (resource_size_t)sizeof(*_s_ptXpecIrqRegs[xcinst]), dev_name(dev));
-		if (IS_ERR(res))
+		if (res == NULL)
 			break;
 		XpecIrqRegs_res[xcinst] = res;
 
 		if ((refcount_bitfield & (0x3<<xcNo)) == 0) {
 			res = request_mem_region((resource_size_t)_s_aptPFifo[xcNo], (resource_size_t)sizeof(*_s_aptPFifo[xcNo]), dev_name(dev));
-			if (IS_ERR(res))
+			if (res == NULL)
 				break;
 			PFifo_res[xcNo] = res;
 		}
 
 		if (refcount_bitfield == 0) {
 			res = request_mem_region((resource_size_t)_s_apulIntRamStart[0], (resource_size_t)INTRAM_SIZE, dev_name(dev));
-			if (IS_ERR(res))
+			if (res == NULL)
 				break;
 			IntRamStart_res[0] = res;
 
 			res = request_mem_region((resource_size_t)_s_apulIntRamStart[1], (resource_size_t)INTRAM_SIZE, dev_name(dev));
-			if (IS_ERR(res))
+			if (res == NULL)
 				break;
 			IntRamStart_res[1] = res;
 
 			res = request_mem_region((resource_size_t)_s_apulIntRamStart[2], (resource_size_t)INTRAM_SIZE, dev_name(dev));
-			if (IS_ERR(res))
+			if (res == NULL)
 				break;
 			IntRamStart_res[2] = res;
 
 			res = request_mem_region((resource_size_t)_s_apulIntRamStart[3], (resource_size_t)INTRAM_SIZE, dev_name(dev));
-			if (IS_ERR(res))
+			if (res == NULL)
 				break;
 			IntRamStart_res[3] = res;
 		}
@@ -357,7 +382,7 @@ static struct fifo_res *netx4000_xceth_alloc_fifo_res(struct device_d *dev, uint
 		refcount_bitfield |= (1<<xcinst);
 	} while (0);
 
-	if (IS_ERR(res))
+	if (res == NULL)
 		goto err_out;
 
 	s_aptXpecDRam[xcinst] = ioremap(XpecDRam_res[xcinst]->start, resource_size(XpecDRam_res[xcinst]));
@@ -376,11 +401,35 @@ err_out:
 	return NULL;
 }
 
+void netx4000_xceth_confirm_irq( uint8_t port, uint32_t mask)
+{
+	iowrite32(mask & 0xFFFF, s_ptXpecIrqRegs[port]);
+}
+
+uint32_t netx4000_xceth_get_irq( uint8_t port)
+{
+	return (ioread32(s_ptXpecIrqRegs[port]) & 0xFFFF);
+}
+
+int netx4000_xceth_set_irq( uint8_t uiPort, uint32_t mask)
+{
+	iowrite32(mask & MSK_ETHMAC_INTERRUPTS_ENABLE_IND_HI_VAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_INTERRUPTS_ENABLE_IND_HI);
+	iowrite32(mask & MSK_ETHMAC_INTERRUPTS_ENABLE_IND_LO_VAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_INTERRUPTS_ENABLE_IND_LO);
+	iowrite32(mask & MSK_ETHMAC_INTERRUPTS_ENABLE_CON_HI_VAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_INTERRUPTS_ENABLE_CON_HI);
+	iowrite32(mask & MSK_ETHMAC_INTERRUPTS_ENABLE_CON_LO_VAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_INTERRUPTS_ENABLE_CON_LO);
+	iowrite32(mask & MSK_ETHMAC_INTERRUPTS_ENABLE_LINK_CHANGED_VAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_INTERRUPTS_ENABLE_LINK_CHANGED);
+	iowrite32(mask & MSK_ETHMAC_INTERRUPTS_ENABLE_COL_VAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_INTERRUPTS_ENABLE_COL);
+	iowrite32(mask & MSK_ETHMAC_INTERRUPTS_ENABLE_EARLY_RCV_VAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_INTERRUPTS_ENABLE_EARLY_RCV);
+	iowrite32(mask & MSK_ETHMAC_INTERRUPTS_ENABLE_RX_ERR_VAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_INTERRUPTS_ENABLE_RX_ERR);
+	iowrite32(mask & MSK_ETHMAC_INTERRUPTS_ENABLE_TX_ERR_VAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_INTERRUPTS_ENABLE_TX_ERR);
+
+	return 0;
+}
+
 #endif /* __BAREBOX_CODE */
 
 int netx4000_xceth_fifo_release(uint8_t xcinst)
 {
-	pr_debug("%s: +++ (xcinst %i)\n", __func__, xcinst);
 
 	if (!g_fifoRes[xcinst])
 		return -EINVAL;
@@ -391,11 +440,13 @@ int netx4000_xceth_fifo_release(uint8_t xcinst)
 	return 0;
 }
 
+#ifdef __BAREBOX_CODE
 int netx4000_xceth_fifo_request(struct device_d *dev, uint8_t xcinst)
+#else
+int netx4000_xceth_fifo_request(struct device *dev, uint8_t xcinst)
+#endif
 {
 	struct fifo_res *res;
-
-	pr_debug("%s: +++ (dev %p, xcinst %i)\n", __func__, dev, xcinst);
 
 	res = netx4000_xceth_alloc_fifo_res(dev, xcinst);
 	if(!res)
@@ -419,8 +470,6 @@ void netx4000_xceth_initFifoUnit(unsigned int uiPort)
 	uint32_t     ulFifoMsk;
 	unsigned int uiXc   = uiPort >> 1;
 	unsigned int uiXpec = uiPort & 1;
-
-	pr_debug("%s: +++ (uiPort %i)\n", __func__, uiPort);
 
 	ulFifoMsk = (1UL << NUM_FIFO_CHANNELS_PER_UNIT) - 1;
 	ulFifoMsk = ulFifoMsk << (NUM_FIFO_CHANNELS_PER_UNIT * uiXpec);
@@ -458,8 +507,6 @@ void netx4000_xceth_initFifoUnit(unsigned int uiPort)
 int netx4000_xceth_set_link_mode(unsigned int uiPort, bool fValid, unsigned int uiSpeed, bool fFdx)
 {
 	uint32_t ulVal = 0; /* default: invalid link and SPEED10 and HDX */
-
-	pr_debug("%s: +++ (uiPort %i, fValid %i, uiSpeed %i, fFdx %i)\n", __func__, uiPort, fValid, uiSpeed, fFdx);
 
 #ifndef __ETHMAC_DISABLE_CHECKS__
 	/* check the port number */
@@ -499,10 +546,6 @@ int netx4000_xceth_set_mac_address(uint32_t uiPort, ETH_MAC_ADDRESS_TYPE_E eType
 {
 	uint32_t ulMacHi, ulMacLo;
 
-	pr_debug("%s: +++ (uiPort %i, eType %i, tMacAddr %02x:%02x:%02x:%02x:%02x:%02x)\n", __func__, uiPort, eType,
-		tMacAddr[0], tMacAddr[1], tMacAddr[2], tMacAddr[3], tMacAddr[4], tMacAddr[5]
-	);
-
 #ifndef __ETHMAC_DISABLE_CHECKS__
 	/* check the port number */
 	if (uiPort >= ETHMAC_PORTS)
@@ -531,8 +574,6 @@ int netx4000_xceth_set_mac_address(uint32_t uiPort, ETH_MAC_ADDRESS_TYPE_E eType
 int netx4000_xceth_get_mac_address(uint32_t uiPort, ETH_MAC_ADDRESS_TYPE_E eType, ETHERNET_MAC_ADDR_T* ptMacAddr)
 {
 	uint32_t ulTempLo, ulTempHi;
-
-	pr_debug("%s: +++ (uiPort %i, eType %i, *ptMacAddr %p)\n", __func__, uiPort, eType, ptMacAddr);
 
 #ifndef __ETHMAC_DISABLE_CHECKS__
 	if (uiPort >= ETHMAC_PORTS)
@@ -572,8 +613,6 @@ int netx4000_xceth_get_frame(unsigned int uiPort, ETHERNET_FRAME_T** pptFrame, v
 	unsigned int uiFifo;
 	unsigned int uiXc   = uiPort >> 1;
 	unsigned int uiXpec = uiPort & 1;
-
-	pr_debug("%s: +++ (uiPort %i, pptFrame %p, phFrame %p)\n", __func__, uiPort, pptFrame, phFrame);
 
 #ifndef __ETHMAC_DISABLE_CHECKS__
 	/* check the port number */
@@ -633,7 +672,7 @@ int netx4000_xceth_send_frame(unsigned int uiPort, void* hFrame, uint32_t ulLeng
 	return 0;
 }
 
-static int netx4000_xceth_get_send_cnf_fill_level(unsigned int uiPort, unsigned int uHighPriority, uint32_t *pulCnfFillLevel)
+int netx4000_xceth_get_send_cnf_fill_level(unsigned int uiPort, unsigned int uHighPriority, uint32_t *pulCnfFillLevel)
 {
 	unsigned int uiFifo;
 	unsigned int uiXc   = uiPort >> 1;
@@ -734,8 +773,6 @@ int netx4000_xceth_send_frame_without_cnf(unsigned int uiPort, void* hFrame, uin
 	unsigned int uiXc  = uiPort >> 1;
 	unsigned int uiXpec = uiPort & 1;
 
-	pr_debug("%s: +++ (uiPort %i, hFrame %p, ulLength %i, uHighPriority %i)\n", __func__, uiPort, hFrame, ulLength, uHighPriority);
-
 #ifndef __ETHMAC_DISABLE_CHECKS__
 	/* check the port number */
 	if (uiPort >= ETHMAC_PORTS)
@@ -769,8 +806,6 @@ int netx4000_xceth_get_recv_fill_level(unsigned int uiPort, unsigned int uHighPr
 	unsigned int uiXc  = uiPort >> 1;
 	unsigned int uiXpec = uiPort & 1;
 
-	pr_debug("%s: +++ (uiPort %i, uHighPriority %i, pulFillLevel %p)\n", __func__, uiPort, uHighPriority, pulFillLevel);
-
 #ifndef __ETHMAC_DISABLE_CHECKS__
 	/* check the port number */
 	if (uiPort >= ETHMAC_PORTS)
@@ -795,10 +830,7 @@ int netx4000_xceth_recv_frame(unsigned int uiPort, ETHERNET_FRAME_T** pptFrame, 
 	unsigned int uiFifo;
 	unsigned int uiXc  = uiPort >> 1;
 	unsigned int uiXpec = uiPort & 1;
-
 	int rc;
-
-	pr_debug("%s: +++\n", __func__);
 
 #ifndef __ETHMAC_DISABLE_CHECKS__
 	/* check the port number */
@@ -844,8 +876,6 @@ int netx4000_xceth_release_frame(unsigned int uiPort, void* hFrame)
 	unsigned int uiXc  = uiPort >> 1;
 	unsigned int uiXpec = uiPort & 1;
 
-	pr_debug("%s: +++\n", __func__);
-
 #ifndef __ETHMAC_DISABLE_CHECKS__
 	/* check the port number */
 	if (uiPort >= ETHMAC_PORTS)
@@ -860,6 +890,23 @@ int netx4000_xceth_release_frame(unsigned int uiPort, void* hFrame)
 
 	/* return pointer in empty FIFO */
 	iowrite32(ulFifoPtr, &s_aptPFifo[uiXc]->aulPfifo[uiFifo]);
+
+	return 0;
+}
+
+int netx4000_xceth_mode_promisc(unsigned int uiPort, unsigned int uEnable)
+{
+#ifndef __ETHMAC_DISABLE_CHECKS__
+	/* check the port number */
+	if( uiPort >= ETHMAC_PORTS )
+		return -EINVAL;
+#endif
+	if (uEnable) {
+		iowrite32(MSK_ETHMAC_HELP_RX_FRWD2LOCAL, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_MONITORING_MODE);
+	}
+	else {
+		iowrite32(0, &s_aptXpecDRam[uiPort]->tETHMAC_CONFIG_AREA_BASE.ulETHMAC_MONITORING_MODE);
+	}
 
 	return 0;
 }
