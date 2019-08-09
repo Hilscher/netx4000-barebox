@@ -2138,6 +2138,14 @@ config CMD_SEED
 	help
 	  Seed the pseudo random number generator (PRNG)
 
+config CMD_VERIFY_SIGNATURE
+	tristate
+	prompt "verify_signature"
+	select CRYPTO_RSA
+	select OFTREE
+	help
+	  Signature verification support
+
 # end Miscellaneous commands
 endmenu
 

@@ -7,10 +7,16 @@ if [ "$func" = "search" ]; then
 	file=$3
 
 	[ -f ${mp}/${file} ] || exit 1
-	readf ${mp}/${file}.sig hash
-	digest -a sha256 -s ${hash} ${mp}/${file} && exit 0 # success
+	if [ -e /env/key-node ]; then
+		readf /env/key-node key_node
+		verify_signature ${mp}/${file} -k $key_node && exit 0 # success
+	else
+		readf ${mp}/${file}.sig hash
+		digest -a sha256 -s ${hash} ${mp}/${file} && exit 0 # success
+	fi
 	echo "Error: Invalid or missing ${mp}/${file}.sig!"
 	exit 1
+
 fi
 
 if [ "$func" = "select" ]; then
@@ -21,7 +27,7 @@ if [ "$func" = "select" ]; then
 
 	. ${mp}/${file}
 
-	image="${mp}/${fitimage}"
+	image="${mp}/${kernel}"
 	root="rootwait bootCfg=/dev/${ldev}/${file}"
 
 	[ -z "${image}" ] && exit 1
