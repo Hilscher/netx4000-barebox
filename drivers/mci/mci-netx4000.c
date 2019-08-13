@@ -158,30 +158,29 @@ struct dma_link {
 
 struct dma_link dma_links[DMA_LINKS];
 
-static void execute_dma_list(u32 direction, volatile uint8_t* src, volatile uint8_t* dst, u32 count)
+static void execute_dma_list(u32 direction, u32 src, u32 dst, u32 count)
 {
 	int i = 0;
 	uint8_t channel = (direction == DMA_FROM_DEVICE) ? 0 : 1;
 
 	volatile NX4000_RAP_DMAC_CH_AREA_T  *dmach  = (NX4000_RAP_DMAC_CH_AREA_T*)(Addr_NX4000_RAP_DMAC1 + channel * 0x40);
-	volatile NX4000_RAP_DMAC_REG_AREA_T *dmareg = (NX4000_RAP_DMAC_REG_AREA_T*)(Addr_NX4000_RAP_DMAC1_REG);
 
 	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREN;
 	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SWRST;
 
 	for(i=0;i<count/DMA_BLOCK_SIZE_MAX;i++) {
 		if (direction == DMA_FROM_DEVICE) {
-			dma_links[i].src = (uint32_t)src;
-			dma_links[i].dst = (uint32_t)dst + i*DMA_BLOCK_SIZE_MAX;
+			dma_links[i].src = src;
+			dma_links[i].dst = dst + i*DMA_BLOCK_SIZE_MAX;
 		} else {
-			dma_links[i].src = (uint32_t)src + i*DMA_BLOCK_SIZE_MAX;
-			dma_links[i].dst = (uint32_t)dst;
+			dma_links[i].src = src + i*DMA_BLOCK_SIZE_MAX;
+			dma_links[i].dst = dst;
 		}
 		dma_links[i].count = DMA_BLOCK_SIZE_MAX;
 		dma_links[i].nlink = 0;
 		dma_links[i].header = 3;
 		if (i>0) {
-			dma_links[i-1].nlink = &dma_links[i];
+			dma_links[i-1].nlink = (u32)&dma_links[i];
 			dma_links[i-1].header = 1;
 		}
 		if(direction == DMA_FROM_DEVICE) {
@@ -208,15 +207,15 @@ static void execute_dma_list(u32 direction, volatile uint8_t* src, volatile uint
 
 		}
 	}
-	dmach->ulRAP_DMAC_CH_NXLA = &dma_links[0];
+	dmach->ulRAP_DMAC_CH_NXLA = (u32)&dma_links[0];
 	dmach->ulRAP_DMAC_CH_CHCFG = MSK_NX4000_RAP_DMAC_CH_CHCFG_DMS; /* link mode */
 
 	/* sync the lists */
-	dma_sync_single_for_device( &dma_links[0], sizeof(struct dma_link)*count/DMA_BLOCK_SIZE_MAX, DMA_TO_DEVICE);
+	dma_sync_single_for_device( (dma_addr_t)&dma_links[0], sizeof(struct dma_link)*count/DMA_BLOCK_SIZE_MAX, DMA_TO_DEVICE);
 	if(direction == DMA_FROM_DEVICE) {
-		dma_sync_single_for_device( dst, count, DMA_FROM_DEVICE);
+		dma_sync_single_for_device( (dma_addr_t)dst, count, DMA_FROM_DEVICE);
 	} else {
-		dma_sync_single_for_device( src, count, DMA_TO_DEVICE);
+		dma_sync_single_for_device( (dma_addr_t)src, count, DMA_TO_DEVICE);
 	}
 	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SETEN |
 				      MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLRSUS;
@@ -235,12 +234,11 @@ static void execute_dma_list(u32 direction, volatile uint8_t* src, volatile uint
 }
 
 
-static void execute_dma(u32 direction, volatile uint8_t* src, volatile uint8_t* dst, u32 count)
+static void execute_dma(u32 direction, u32 src, u32 dst, u32 count)
 {
 	uint8_t channel = (direction == DMA_FROM_DEVICE) ? 0 : 1;
 
 	volatile NX4000_RAP_DMAC_CH_AREA_T  *dmach  = (NX4000_RAP_DMAC_CH_AREA_T*)(Addr_NX4000_RAP_DMAC1 + channel * 0x40);
-	volatile NX4000_RAP_DMAC_REG_AREA_T *dmareg = (NX4000_RAP_DMAC_REG_AREA_T*)(Addr_NX4000_RAP_DMAC1_REG);
 
 	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_CLREN;
 	dmach->ulRAP_DMAC_CH_CHCTRL = MSK_NX4000_RAP_DMAC_CH_CHCTRL_SWRST;
@@ -298,9 +296,9 @@ static int read_data( struct sdmmc_host *host, uint8_t *buff, long num)
 	memset(buff, 0, num);
 
 	if (num<=DMA_BLOCK_SIZE_MAX)
-		execute_dma(DMA_FROM_DEVICE, src, buff, num);
+		execute_dma(DMA_FROM_DEVICE, (uint32_t)src, (uint32_t)buff, num);
 	else
-		execute_dma_list(DMA_FROM_DEVICE, src, buff, num);
+		execute_dma_list(DMA_FROM_DEVICE, (uint32_t)src, (uint32_t)buff, num);
 
 	return 0;
 }
@@ -310,9 +308,9 @@ static int write_data( struct sdmmc_host *host, const uint8_t *buff, long num)
 	volatile uint8_t* dst = (volatile uint8_t*)host->regs + 0x200;
 
 	if (num<=DMA_BLOCK_SIZE_MAX)
-		execute_dma(DMA_TO_DEVICE, buff, dst, num);
+		execute_dma(DMA_TO_DEVICE, (u32)buff, (u32)dst, num);
 	else
-		execute_dma_list(DMA_TO_DEVICE, buff, dst, num);
+		execute_dma_list(DMA_TO_DEVICE, (u32)buff, (u32)dst, num);
 
 	return 0;
 }

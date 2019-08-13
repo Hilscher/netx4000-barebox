@@ -1,4 +1,4 @@
-/*
+#/*
 * XC Ethernet HAL functions for Hilscher netX4000 based platforms
 *
 * drivers/net/netx4000-xceth-hal.c
@@ -823,14 +823,16 @@ int netx4000_xceth_get_recv_fill_level(unsigned int uiPort, unsigned int uHighPr
 
 int netx4000_xceth_recv_frame(unsigned int uiPort, ETHERNET_FRAME_T** pptFrame, void** phFrame, uint32_t* pulLength, unsigned int uHighPriority)
 {
+#ifndef __ETHMAC_DISABLE_CHECKS__
 	uint32_t ulFillLevel;
+	int rc;
+#endif
 	uint32_t ulOffset = 0;
 	uint32_t ulFifoPtr = 0;
 	uint32_t ulVal;
 	unsigned int uiFifo;
 	unsigned int uiXc  = uiPort >> 1;
 	unsigned int uiXpec = uiPort & 1;
-	int rc;
 
 #ifndef __ETHMAC_DISABLE_CHECKS__
 	/* check the port number */
