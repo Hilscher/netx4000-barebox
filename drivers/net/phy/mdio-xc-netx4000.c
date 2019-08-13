@@ -213,11 +213,11 @@ static int netx4000_mdio_intphy_init(struct priv_data *priv)
 
 	if (addr == INTPHY0_ID) {
 		val32 = ioread32(PHY_CONTROL);
-		iowrite32(val32|sPHY0_ENABLE(1), PHY_CONTROL);
+		iowrite32(val32|sPHY0_ENABLE(1)|sPHY0_AUTOMDIX(1), PHY_CONTROL);
 	}
 	else if (addr == INTPHY1_ID) {
 		val32 = ioread32(PHY_CONTROL);
-		iowrite32(val32|sPHY1_ENABLE(1), PHY_CONTROL);
+		iowrite32(val32|sPHY1_ENABLE(1)|sPHY1_AUTOMDIX(1), PHY_CONTROL);
 	}
 
 	/* Enable software mode */
@@ -228,9 +228,11 @@ static int netx4000_mdio_intphy_init(struct priv_data *priv)
 	iowrite32(sLED_MODE(0x01 /* static */), INT_PHY_CTRL_LED(priv->base));
 
 	/* Deassert PHY reset / Enable Auto-Negotiation */
-	val32 = ioread32(PHY_CONTROL) & ~(sPHY_RESET(-1)|sPHY_MODE(-1));
-	iowrite32(val32|sPHY_MODE(0x7 /* advertise all */), PHY_CONTROL);
+	val32 = (ioread32(PHY_CONTROL) & ~(sPHY_RESET(-1)|sPHY_MODE(-1))) |
+		sPHY_MODE(0x7 /* advertise all */);
+	iowrite32(val32|sPHY_RESET(1), PHY_CONTROL);
 	mdelay(100);
+	iowrite32(val32, PHY_CONTROL);
 
 	return 0;
 }
